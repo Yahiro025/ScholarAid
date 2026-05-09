@@ -1,7 +1,7 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { GraduationCap, Sparkles, Search, BookOpen } from 'lucide-react'
+import { GraduationCap, Sparkles, Search, BookOpen, MessageCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 const fadeUp = {
@@ -192,6 +192,7 @@ export function HeroSection() {
             { icon: Sparkles, label: 'AI-Powered Matching' },
             { icon: Search, label: 'Instant Eligibility Check' },
             { icon: BookOpen, label: 'Smart Exam Review' },
+            { icon: MessageCircle, label: 'AI Chatbot Assistant' },
           ].map(({ icon: Icon, label }) => (
             <div
               key={label}

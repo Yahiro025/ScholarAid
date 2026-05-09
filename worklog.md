@@ -23,3 +23,27 @@ Stage Summary:
 - Responsive design with emerald/teal/amber color theme
 - Framer-motion animations throughout
 - All API routes functional and tested
+
+---
+Task ID: 8-10
+Agent: main
+Task: Add AI Chatbot Assistant to ScholarAId
+
+Work Log:
+- Created POST /api/chat route with scholarship context injection into system prompt
+- Built AIChatbot component with floating chat button, chat panel, message history, typing indicator
+- Chatbot uses z-ai-web-dev-sdk with full scholarship database as context
+- Added suggested prompts for quick interaction (GPA, strand, eligibility, exam tips)
+- Integrated chatbot into page.tsx as floating overlay
+- Added AI Chatbot to hero feature pills and footer quick links
+- Chatbot has Filipino-friendly personality (uses "Kamusta!", "Kayang-kaya yan!" etc.)
+- Markdown-like rendering for bold text, bullet points, numbered lists
+- ESLint passes cleanly
+
+Stage Summary:
+- AI Chatbot Assistant with context-aware scholarship knowledge
+- Floating chat button (bottom-right) with animated open/close
+- Full conversation history with multi-turn context (last 20 messages)
+- Suggested prompts for first-time users
+- Scholarship database cached in memory with 5-minute TTL
+- Filipino-friendly personality with encouraging tone

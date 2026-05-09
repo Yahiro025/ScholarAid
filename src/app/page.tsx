@@ -5,6 +5,7 @@ import { HeroSection } from '@/components/hero-section'
 import { EligibilityChecker } from '@/components/eligibility-checker'
 import { ScholarshipBrowser } from '@/components/scholarship-browser'
 import { AIReviewer } from '@/components/ai-reviewer'
+import { AIChatbot } from '@/components/ai-chatbot'
 import { Footer } from '@/components/footer'
 import { motion } from 'framer-motion'
 import { Brain, Sparkles, BookOpen, Target } from 'lucide-react'
@@ -158,6 +159,7 @@ export default function Home() {
         </section>
       </main>
       <Footer />
+      <AIChatbot />
     </div>
   )
 }

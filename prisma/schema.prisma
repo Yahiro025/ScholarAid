@@ -1,0 +1,41 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Scholarship {
+  id              String   @id @default(cuid())
+  name            String
+  provider        String
+  description     String
+  scholarshipType String   // academic, athletic, financial-need, merit, government, private
+  coverage        String   // full, partial, stipend
+  coverageDetails String?
+  eligibleStrands String   // comma-separated: STEM, ABM, HUMSS, GAS, TVL, etc.
+  minGPA          Float    // minimum general average (e.g. 85, 88, 90)
+  maxAnnualIncome Float?   // maximum annual family income in PHP
+  requirements    String   // comma-separated requirements
+  deadline        String   // application deadline description
+  examType        String?  // type of exam: aptitude, academic, essay, interview, none
+  examSubjects    String?  // subjects covered in exam
+  websiteUrl      String?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model ReviewerSession {
+  id             String   @id @default(cuid())
+  scholarshipId  String
+  scholarshipName String
+  studentProfile String   // JSON string of student profile
+  questions      String   // JSON string of questions
+  score          Float?
+  totalQuestions  Int
+  completedAt    DateTime?
+  createdAt      DateTime @default(now())
+}

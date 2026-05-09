@@ -47,3 +47,45 @@ Stage Summary:
 - Suggested prompts for first-time users
 - Scholarship database cached in memory with 5-minute TTL
 - Filipino-friendly personality with encouraging tone
+
+---
+Task ID: 11-13
+Agent: main
+Task: Improve AI Chatbot - Anti-hallucination, Web Search Grounding, Better Reasoning
+
+Work Log:
+- Completely rewrote /api/chat/route.ts with multi-step reasoning pipeline
+- Added query classification step that determines if a query needs web search or can be answered from DB alone
+- Integrated z-ai-web-dev-sdk web_search function for real-time web search grounding when queries go beyond DB knowledge
+- Integrated z-ai-web-dev-sdk page_reader function for scraping scholarship websites for current info
+- Enabled thinking mode (was previously disabled) for better AI reasoning
+- Added comprehensive anti-hallucination system prompt with 9 explicit rules:
+  1. Never fabricate scholarship names or details
+  2. Only use information from provided context
+  3. Always express uncertainty when unsure
+  4. Honestly say when a scholarship isn't in the database
+  5. Never state uncertain information as fact
+  6. Admit "I don't know" rather than making things up
+  7. Label web search sources clearly
+  8. Add disclaimers for time-sensitive info
+  9. Don't extrapolate numbers/dates not in context
+- Added source tracking (database/web_search/web_page) returned with each response
+- Added web search result caching (10-minute TTL) for performance
+- Completely rewrote ai-chatbot.tsx frontend component:
+  - Added SourceBadge component showing where info came from (Database/Web Search/Web Page)
+  - Added source links (clickable) when web search was used
+  - Added anti-hallucination notice banner in chat header
+  - Improved loading states with stage indicators (Thinking... → Searching the web... → Reading sources...)
+  - Added Shield icon for "Grounded & Verified" status
+  - Added AlertTriangle disclaimer at bottom
+  - Updated floating button badge from "1" to "AI"
+- ESLint passes cleanly
+
+Stage Summary:
+- Multi-step AI pipeline: Classify → Web Search (if needed) → Read Page (if needed) → Generate with Thinking
+- 9-rule anti-hallucination system that forces the AI to admit uncertainty
+- Web search grounding via z-ai-web-dev-sdk for queries outside DB knowledge
+- Source transparency: every response shows where information came from
+- Clickable source links for verification
+- Cached web search results for performance
+- Thinking mode enabled for better reasoning quality

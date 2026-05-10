@@ -17,6 +17,7 @@ import {
   Lightbulb,
   Target,
   GraduationCap,
+  X,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -253,6 +254,31 @@ export function AIReviewer({
     setPhase('select')
   }
 
+  // Full reset — also calls onClose to clear parent state
+  const handleClose = useCallback(() => {
+    // Reset all internal state
+    setQuestions([])
+    setAnswers([])
+    setCurrentQuestion(0)
+    setGenerateError('')
+    setSelectedId('')
+    setPhase('select')
+    setScholarshipError('')
+    setGenerating(false)
+    setLoadingTip('')
+
+    // Notify parent to clear its state (which triggers key change -> full remount)
+    if (onClose) onClose()
+
+    // Scroll back to the reviewer section header
+    setTimeout(() => {
+      const section = document.getElementById('ai-reviewer')
+      if (section) {
+        section.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }
+    }, 150)
+  }, [onClose])
+
   // ─── Results calculation ────────────────────────────────────────
   const correctCount = questions.reduce(
     (acc, q, i) => acc + (answers[i] === q.correctAnswer ? 1 : 0),
@@ -470,10 +496,11 @@ export function AIReviewer({
             {/* Close button */}
             {onClose && (
               <Button
-                variant="ghost"
-                className="w-full text-slate-500"
-                onClick={onClose}
+                variant="outline"
+                className="w-full text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-700"
+                onClick={handleClose}
               >
+                <X className="h-4 w-4 mr-1.5" />
                 Cancel
               </Button>
             )}
@@ -487,6 +514,20 @@ export function AIReviewer({
   if (phase === 'loading') {
     return (
       <div className="w-full max-w-2xl mx-auto">
+        {/* Close / Cancel button - placed above the card */}
+        {onClose && (
+          <div className="flex justify-end mb-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 gap-1.5 px-3 text-slate-500 border-slate-200 hover:text-rose-600 hover:bg-rose-50 hover:border-rose-300 transition-all duration-200"
+              onClick={handleClose}
+            >
+              <X className="h-3.5 w-3.5" />
+              Cancel
+            </Button>
+          </div>
+        )}
         <Card className="border-emerald-200/60 shadow-lg">
           <CardContent className="py-16 flex flex-col items-center text-center space-y-6">
             {/* Animated brain icon */}
@@ -556,7 +597,7 @@ export function AIReviewer({
 
     return (
       <div className="w-full max-w-2xl mx-auto space-y-4">
-        {/* Header bar */}
+        {/* Header bar with close button */}
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <Brain className="h-5 w-5 text-emerald-600" />
@@ -564,9 +605,23 @@ export function AIReviewer({
               {propScholarshipName || selectedScholarship?.name}
             </span>
           </div>
-          <div className="flex items-center gap-2 text-xs text-slate-500">
-            <BookOpen className="h-3.5 w-3.5" />
-            {answeredCount}/{totalQuestions} answered
+          <div className="flex items-center gap-2">
+            <div className="text-xs text-slate-500 flex items-center gap-1">
+              <BookOpen className="h-3.5 w-3.5" />
+              {answeredCount}/{totalQuestions} answered
+            </div>
+            {onClose && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1.5 px-3 text-slate-500 border-slate-200 hover:text-rose-600 hover:bg-rose-50 hover:border-rose-300 transition-all duration-200"
+                onClick={handleClose}
+                title="Exit reviewer"
+              >
+                <X className="h-3.5 w-3.5" />
+                <span className="text-xs">Exit</span>
+              </Button>
+            )}
           </div>
         </div>
 
@@ -709,6 +764,21 @@ export function AIReviewer({
   // ─── Phase: Results ─────────────────────────────────────────────
   return (
     <div className="w-full max-w-2xl mx-auto space-y-6">
+      {/* Close / Exit button - placed ABOVE the card to avoid overflow clipping */}
+      {onClose && (
+        <div className="flex justify-end">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1.5 px-3 text-slate-500 border-slate-200 hover:text-rose-600 hover:bg-rose-50 hover:border-rose-300 transition-all duration-200"
+            onClick={handleClose}
+            title="Close reviewer"
+          >
+            <X className="h-3.5 w-3.5" />
+            Exit Reviewer
+          </Button>
+        </div>
+      )}
       {/* Score summary card */}
       <Card className="border-emerald-200/60 shadow-lg overflow-hidden">
         <div className="bg-gradient-to-br from-emerald-50 via-teal-50 to-amber-50 p-6">
@@ -872,8 +942,13 @@ export function AIReviewer({
           New Reviewer
         </Button>
         {onClose && (
-          <Button variant="ghost" onClick={onClose} className="text-slate-500">
-            Close
+          <Button
+            variant="outline"
+            onClick={handleClose}
+            className="flex-1 gap-1 border-rose-200 text-rose-600 hover:bg-rose-50 hover:border-rose-300 hover:text-rose-700"
+          >
+            <X className="h-4 w-4" />
+            Close Reviewer
           </Button>
         )}
       </div>

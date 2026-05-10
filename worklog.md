@@ -1,91 +1,125 @@
 ---
-Task ID: 1-7
-Agent: main
-Task: Build ScholarAId - AI-Powered Scholarship Website for Filipino Students
+Task ID: 1
+Agent: Main
+Task: Fix dev server stability and page not displaying
 
 Work Log:
-- Set up Prisma schema with Scholarship and ReviewerSession models
-- Seeded database with 16 real Philippine scholarships (DOST-SEI, CHED StuFAPs, UP Oblation, SM Foundation, Ayala Foundation, etc.)
-- Created 3 backend API routes: GET /api/scholarships (filtering), POST /api/eligibility (matching), POST /api/reviewer (AI-generated questions)
-- Built HeroSection component with animated gradient text, CTAs, decorative elements
-- Built EligibilityChecker component with GPA slider, strand radio group, income selector, type checkboxes, and animated results display
-- Built ScholarshipBrowser component with search, filter chips, responsive card grid, and detail dialog
-- Built AIReviewer component with scholarship selection, loading state with tips, quiz interface, and results summary
-- Built Footer component with sticky bottom behavior and anchor navigation
-- Integrated all components in page.tsx with cross-component communication (Start Reviewer -> AI Reviewer section)
-- Added section IDs for anchor navigation from footer and hero CTAs
-- ESLint passes cleanly
+- Investigated why the website was not displaying anything
+- Found that the Next.js dev server process was repeatedly dying after ~10-15 seconds
+- The HTML content was actually correct (93,920 bytes) when the server was running
+- The Caddy gateway on port 81 shows a Z.ai splash page when Next.js on port 3000 is down
+- Used a double-fork approach with setsid to make the server process more persistent
+- Server now stays alive and serves pages correctly
 
 Stage Summary:
-- Complete full-stack ScholarAId website with 4 main sections: Hero, Eligibility Checker, Scholarship Browser, AI Exam Reviewer
-- 16 real Philippine scholarships in the database
-- AI-powered exam reviewer using z-ai-web-dev-sdk
-- Responsive design with emerald/teal/amber color theme
-- Framer-motion animations throughout
-- All API routes functional and tested
+- The "not displaying" issue was caused by the dev server crashing, not a code bug
+- Server process is now more stable with double-fork approach
+- Page renders correctly with all sections when server is up
 
 ---
-Task ID: 8-10
-Agent: main
-Task: Add AI Chatbot Assistant to ScholarAId
+Task ID: 2
+Agent: Main
+Task: Fix close button after using smart exam reviewer
 
 Work Log:
-- Created POST /api/chat route with scholarship context injection into system prompt
-- Built AIChatbot component with floating chat button, chat panel, message history, typing indicator
-- Chatbot uses z-ai-web-dev-sdk with full scholarship database as context
-- Added suggested prompts for quick interaction (GPA, strand, eligibility, exam tips)
-- Integrated chatbot into page.tsx as floating overlay
-- Added AI Chatbot to hero feature pills and footer quick links
-- Chatbot has Filipino-friendly personality (uses "Kamusta!", "Kayang-kaya yan!" etc.)
-- Markdown-like rendering for bold text, bullet points, numbered lists
-- ESLint passes cleanly
+- Analyzed the AIReviewer component's close button behavior across all phases
+- Identified issue: The `key={reviewerScholarshipId || 'default'}` prop caused remounting problems
+  - When close button was clicked, the key changed, causing a full remount
+  - This could lead to unexpected behavior where the close appeared to not work
+- Changed the key prop from `reviewerScholarshipId` to a `reviewerResetKey` counter
+  - Parent increments resetKey on both start and close, ensuring clean remount
+- Fixed close button positioning in loading phase:
+  - Moved from absolute positioned (could be clipped by overflow-hidden) to above the card
+- Fixed close button in results phase:
+  - Moved from absolute positioned inside card to above the card (avoids overflow clipping)
+  - Made "Close Reviewer" button more prominent with rose color styling
+- Made handleClose a useCallback with proper dependency on onClose
 
 Stage Summary:
-- AI Chatbot Assistant with context-aware scholarship knowledge
-- Floating chat button (bottom-right) with animated open/close
-- Full conversation history with multi-turn context (last 20 messages)
-- Suggested prompts for first-time users
-- Scholarship database cached in memory with 5-minute TTL
-- Filipino-friendly personality with encouraging tone
+- Replaced key prop with reviewerResetKey counter for reliable remounting
+- Fixed close button positioning in loading and results phases
+- Made handleClose a proper useCallback
+- Close buttons are now more visible and not clipped by overflow-hidden
 
 ---
-Task ID: 11-13
-Agent: main
-Task: Improve AI Chatbot - Anti-hallucination, Web Search Grounding, Better Reasoning
+Task ID: 3
+Agent: Main
+Task: Verify priority courses for eligibility on each scholarship
 
 Work Log:
-- Completely rewrote /api/chat/route.ts with multi-step reasoning pipeline
-- Added query classification step that determines if a query needs web search or can be answered from DB alone
-- Integrated z-ai-web-dev-sdk web_search function for real-time web search grounding when queries go beyond DB knowledge
-- Integrated z-ai-web-dev-sdk page_reader function for scraping scholarship websites for current info
-- Enabled thinking mode (was previously disabled) for better AI reasoning
-- Added comprehensive anti-hallucination system prompt with 9 explicit rules:
-  1. Never fabricate scholarship names or details
-  2. Only use information from provided context
-  3. Always express uncertainty when unsure
-  4. Honestly say when a scholarship isn't in the database
-  5. Never state uncertain information as fact
-  6. Admit "I don't know" rather than making things up
-  7. Label web search sources clearly
-  8. Add disclaimers for time-sensitive info
-  9. Don't extrapolate numbers/dates not in context
-- Added source tracking (database/web_search/web_page) returned with each response
-- Added web search result caching (10-minute TTL) for performance
-- Completely rewrote ai-chatbot.tsx frontend component:
-  - Added SourceBadge component showing where info came from (Database/Web Search/Web Page)
-  - Added source links (clickable) when web search was used
-  - Added anti-hallucination notice banner in chat header
-  - Improved loading states with stage indicators (Thinking... → Searching the web... → Reading sources...)
-  - Added Shield icon for "Grounded & Verified" status
-  - Added AlertTriangle disclaimer at bottom
-  - Updated floating button badge from "1" to "AI"
-- ESLint passes cleanly
+- Checked the database - all 16 scholarships already have priorityCourses field populated
+- Priority courses are properly displayed in:
+  - Scholarship cards (first 3 courses shown with "+N more" overflow)
+  - Detail dialog (full list with scroll area)
+  - Eligibility checker (target course input with popular course quick-picks)
+- Eligibility API properly checks course matching (case-insensitive partial match)
+- Eligibility result cards show course match badge
 
 Stage Summary:
-- Multi-step AI pipeline: Classify → Web Search (if needed) → Read Page (if needed) → Generate with Thinking
-- 9-rule anti-hallucination system that forces the AI to admit uncertainty
-- Web search grounding via z-ai-web-dev-sdk for queries outside DB knowledge
-- Source transparency: every response shows where information came from
-- Clickable source links for verification
-- Cached web search results for performance
-- Thinking mode enabled for better reasoning quality
+- Priority courses were already implemented and populated for all 16 scholarships
+- Course matching works in eligibility checker
+- No additional changes needed for priority courses
+
+---
+Task ID: 4
+Agent: Main
+Task: Fix AI chatbot GPA eligibility - pre-filter scholarships by user's GPA on backend
+
+Work Log:
+- Investigated the chat API route (src/app/api/chat/route.ts)
+- Root cause: The chatbot passed ALL scholarships to the LLM as context, relying on the LLM to filter by GPA. The LLM often failed, showing scholarships with minGPA 90% to users with 85% GPA.
+- Implemented server-side GPA extraction from user messages using regex patterns
+- Added getFilteredScholarshipsContext() that pre-filters scholarships where minGPA <= userGPA
+- Also added strand extraction and filtering
+- Added explicit ELIGIBILITY RULES section to system prompt with strict GPA matching rules
+- Added PRE-FILTERED note in system prompt when GPA-based filtering is applied
+- Lists ineligible scholarships by name and minGPA so the LLM knows what NOT to recommend
+- Added priority courses to the scholarship context sent to the LLM
+- Added database source badge when GPA filtering is active
+- Tested with 85% GPA: correctly shows only scholarships with minGPA ≤ 85% (DOST-SEI, CHED, PESFA, etc.)
+- Tested with 92% GPA: correctly includes higher-tier scholarships (UP Oblation, Benilde, etc.)
+
+Stage Summary:
+- GPA eligibility is now enforced at the database level, not just LLM reasoning
+- Pre-filtering prevents LLM from seeing ineligible scholarships
+- System prompt has explicit GPA matching rules and pre-filtering notices
+- Priority courses are now included in chatbot context
+- Close button on reviewer improved with consistent outline variant styling and moved outside overflow-hidden cards
+
+---
+Task ID: 5
+Agent: Main
+Task: Implement AI-powered personalized scholarship recommendation system (addressing user's 3 requirements)
+
+Work Log:
+- Analyzed existing features vs the 3 requirements the user specified
+- Found critical gaps: eligibility checker was purely rule-based, no AI analysis of student profiles, no application preparedness guidance, no interest/career-based matching
+- Built new AI Scholarship Matcher API (src/app/api/matcher/route.ts):
+  - Hybrid rule-based + LLM intelligent matching engine
+  - Step 1: Rule-based pre-filtering (GPA, strand, income, course matching)
+  - Step 2: AI-powered analysis using LLM with thinking enabled
+  - Returns structured JSON with: profile insight (SWOT), top recommendations with match reasons and strategies, application readiness score with breakdown, document checklist, near-miss analysis, application timeline
+- Built new UI component (src/components/ai-scholarship-matcher.tsx):
+  - 4-step wizard: Academics → Financial → Interests & Strengths → Review
+  - Comprehensive student input: GPA, strand, income, target course, career interests, personal strengths, scholarship type preferences
+  - Beautiful AI results display: profile insight card, readiness score with visual bars, top recommendations with match reasons and strategies, application timeline with priority badges, near-miss analysis with improvement paths
+- Integrated into main page (src/app/page.tsx):
+  - AI Matcher placed prominently after Hero Section as the core AI feature
+- Updated Hero Section (src/components/hero-section.tsx):
+  - Primary CTA now "Get AI Recommendations" pointing to matcher
+  - Description updated to emphasize AI-powered personalization
+  - Feature pills updated with "AI-Powered Recommendations" and "Personalized Matching"
+- Tested with STEM student (88% GPA, PHP 250K income, BS CS):
+  - Found 9 eligible, 7 near-miss scholarships
+  - AI correctly recommended DOST-SEI and GBF as top fits with reasoning
+  - Readiness score: 75/100 with breakdown (Academic: 90, Document: 70, Exam: 60, Timeline: 65)
+  - Missing documents identified, near-miss scholarships with improvement paths
+  - Application timeline with priority levels (urgent/high/medium/low)
+
+Stage Summary:
+- Addresses all 3 user requirements:
+  1. AI-powered personalized recommendations (not static listings) — AI Matcher uses LLM to analyze student characteristics
+  2. Rule-based + intelligent matching — hybrid: rule-based pre-filter → AI analysis
+  3. Focus on both access AND application preparedness — readiness scores, document checklists, strategies, timelines
+- New files: src/app/api/matcher/route.ts, src/components/ai-scholarship-matcher.tsx
+- Modified: src/app/page.tsx, src/components/hero-section.tsx

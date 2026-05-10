@@ -18,6 +18,7 @@ import {
   X,
   Filter,
   Loader2,
+  Target,
 } from 'lucide-react'
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -48,12 +49,14 @@ interface Scholarship {
   eligibleStrands: string
   minGPA: number
   maxAnnualIncome: number | null
+  priorityCourses: string | null
   requirements: string
   deadline: string
   examType: string | null
   examSubjects: string | null
   websiteUrl: string | null
   isActive: boolean
+  isAcceptingApplications: boolean
 }
 
 interface ScholarshipBrowserProps {
@@ -82,6 +85,12 @@ const STRAND_FILTERS = [
   { value: 'HUMSS', label: 'HUMSS' },
   { value: 'GAS', label: 'GAS' },
   { value: 'TVL', label: 'TVL' },
+] as const
+
+const STATUS_FILTERS = [
+  { value: '', label: 'All' },
+  { value: 'true', label: 'Now Accepting' },
+  { value: 'false', label: 'Closed' },
 ] as const
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -270,6 +279,7 @@ function ScholarshipCard({
   const colors = getTypeColor(scholarship.scholarshipType)
   const strands = parseCSV(scholarship.eligibleStrands)
   const requirements = parseCSV(scholarship.requirements)
+  const priorityCourses = scholarship.priorityCourses ? parseCSV(scholarship.priorityCourses) : []
 
   return (
     <motion.div
@@ -291,6 +301,17 @@ function ScholarshipCard({
             <h3 className="font-semibold text-base leading-tight line-clamp-2 group-hover:text-emerald-700 transition-colors">
               {scholarship.name}
             </h3>
+            {/* Application Status Badge */}
+            {scholarship.isAcceptingApplications ? (
+              <Badge className="shrink-0 bg-green-100 text-green-800 border border-green-200 text-[10px] font-semibold px-1.5 py-0.5 animate-pulse">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500 mr-1 inline-block" />
+                Open
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="shrink-0 bg-slate-100 text-slate-500 border border-slate-200 text-[10px] font-medium px-1.5 py-0.5">
+                Closed
+              </Badge>
+            )}
           </div>
           <p className="text-sm text-muted-foreground flex items-center gap-1">
             <MapPin className="w-3.5 h-3.5" />
@@ -328,6 +349,25 @@ function ScholarshipCard({
             )}
           </div>
 
+          {/* Priority Courses (show first 3) */}
+          {priorityCourses.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {priorityCourses.slice(0, 3).map((course) => (
+                <span
+                  key={course}
+                  className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-100"
+                >
+                  {course}
+                </span>
+              ))}
+              {priorityCourses.length > 3 && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-amber-50 text-amber-500">
+                  +{priorityCourses.length - 3} more
+                </span>
+              )}
+            </div>
+          )}
+
           {/* GPA Requirement */}
           <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
             <FileText className="w-3.5 h-3.5 text-slate-400" />
@@ -337,9 +377,9 @@ function ScholarshipCard({
           </div>
 
           {/* Deadline */}
-          <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-            <Calendar className="w-3.5 h-3.5 text-slate-400" />
-            <span className="line-clamp-1">{scholarship.deadline}</span>
+          <div className="flex items-start gap-1.5 text-xs text-muted-foreground">
+            <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
+            <span className="line-clamp-2">{scholarship.deadline}</span>
           </div>
         </CardContent>
 
@@ -386,6 +426,7 @@ function ScholarshipDetailDialog({
   const strands = parseCSV(scholarship.eligibleStrands)
   const requirements = parseCSV(scholarship.requirements)
   const examSubjects = scholarship.examSubjects ? parseCSV(scholarship.examSubjects) : []
+  const priorityCourses = scholarship.priorityCourses ? parseCSV(scholarship.priorityCourses) : []
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -486,6 +527,31 @@ function ScholarshipDetailDialog({
 
             <Separator />
 
+            {/* Priority Courses Section */}
+            {priorityCourses.length > 0 && (
+              <section>
+                <h4 className="text-sm font-semibold text-slate-900 flex items-center gap-2 mb-2">
+                  <Target className="w-4 h-4 text-emerald-600" />
+                  Priority Courses
+                </h4>
+                <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto pr-1">
+                  {priorityCourses.map((course) => (
+                    <span
+                      key={course}
+                      className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-amber-50 text-amber-700 border border-amber-100"
+                    >
+                      {course}
+                    </span>
+                  ))}
+                </div>
+                <p className="text-xs text-slate-400 mt-2">
+                  These are the preferred courses for this scholarship. Preference may be given to applicants in these programs.
+                </p>
+              </section>
+            )}
+
+            <Separator />
+
             {/* Requirements Section */}
             <section>
               <h4 className="text-sm font-semibold text-slate-900 flex items-center gap-2 mb-2">
@@ -549,7 +615,19 @@ function ScholarshipDetailDialog({
                 <Clock className="w-4 h-4 text-emerald-600" />
                 Deadline
               </h4>
-              <p className="text-sm text-slate-600">{scholarship.deadline}</p>
+              <div className="flex items-center gap-3">
+                <p className="text-sm text-slate-600">{scholarship.deadline}</p>
+                {scholarship.isAcceptingApplications ? (
+                  <Badge className="bg-green-100 text-green-800 border border-green-200 text-xs">
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 mr-1 inline-block" />
+                    Now Accepting
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="bg-slate-100 text-slate-500 border border-slate-200 text-xs">
+                    Currently Closed
+                  </Badge>
+                )}
+              </div>
             </section>
 
             <Separator />
@@ -558,18 +636,18 @@ function ScholarshipDetailDialog({
             <DialogFooter className="flex-col sm:flex-row gap-2 pt-2">
               {scholarship.websiteUrl && (
                 <Button
-                  variant="outline"
-                  className="gap-2"
+                  className="gap-2 bg-amber-500 hover:bg-amber-600 text-white shadow-lg shadow-amber-500/20 transition-all duration-300"
                   asChild
                 >
                   <a href={scholarship.websiteUrl} target="_blank" rel="noopener noreferrer">
                     <ExternalLink className="w-4 h-4" />
-                    Apply Now
+                    Go to Application Page
                   </a>
                 </Button>
               )}
               <Button
-                className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+                variant="outline"
+                className="gap-2 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
                 onClick={() => {
                   onStartReviewer(scholarship.id)
                   onOpenChange(false)
@@ -597,6 +675,7 @@ export function ScholarshipBrowser({ onStartReviewer }: ScholarshipBrowserProps)
   const [typeFilter, setTypeFilter] = useState('')
   const [coverageFilter, setCoverageFilter] = useState('')
   const [strandFilter, setStrandFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
   const [selectedScholarship, setSelectedScholarship] = useState<Scholarship | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
 
@@ -622,6 +701,7 @@ export function ScholarshipBrowser({ onStartReviewer }: ScholarshipBrowserProps)
       if (typeFilter) params.set('type', typeFilter)
       if (coverageFilter) params.set('coverage', coverageFilter)
       if (strandFilter) params.set('strand', strandFilter)
+      if (statusFilter) params.set('accepting', statusFilter)
 
       const res = await fetch(`/api/scholarships?${params.toString()}`)
       if (!res.ok) throw new Error('Failed to fetch')
@@ -633,7 +713,7 @@ export function ScholarshipBrowser({ onStartReviewer }: ScholarshipBrowserProps)
     } finally {
       setLoading(false)
     }
-  }, [debouncedSearch, typeFilter, coverageFilter, strandFilter])
+  }, [debouncedSearch, typeFilter, coverageFilter, strandFilter, statusFilter])
 
   useEffect(() => {
     fetchScholarships()
@@ -654,9 +734,10 @@ export function ScholarshipBrowser({ onStartReviewer }: ScholarshipBrowserProps)
     setTypeFilter('')
     setCoverageFilter('')
     setStrandFilter('')
+    setStatusFilter('')
   }
 
-  const hasActiveFilters = search || typeFilter || coverageFilter || strandFilter
+  const hasActiveFilters = search || typeFilter || coverageFilter || strandFilter || statusFilter
 
   return (
     <section id="scholarships" className="w-full bg-gradient-to-b from-white to-emerald-50/30">
@@ -769,6 +850,25 @@ export function ScholarshipBrowser({ onStartReviewer }: ScholarshipBrowserProps)
                   active={strandFilter === f.value}
                   onClick={() => setStrandFilter(strandFilter === f.value ? '' : f.value)}
                   colorClass="bg-teal-600 text-white border-teal-600"
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* By Application Status */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-medium text-slate-500 flex items-center gap-1 min-w-fit">
+              <Clock className="w-3 h-3" />
+              Status:
+            </span>
+            <div className="flex flex-wrap gap-1.5">
+              {STATUS_FILTERS.map((f) => (
+                <FilterChip
+                  key={f.value}
+                  label={f.label}
+                  active={statusFilter === f.value}
+                  onClick={() => setStatusFilter(statusFilter === f.value ? '' : f.value)}
+                  colorClass={f.value === 'true' ? 'bg-green-600 text-white border-green-600' : f.value === 'false' ? 'bg-red-500 text-white border-red-500' : 'bg-slate-600 text-white border-slate-600'}
                 />
               ))}
             </div>

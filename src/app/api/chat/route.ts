@@ -21,27 +21,108 @@ interface SourceReference {
   snippet?: string;
 }
 
+// ─── GPA Extraction ─────────────────────────────────────────────────────────
+
+/**
+ * Extracts a GPA/grade value from the user's message.
+ * Returns null if no GPA is mentioned.
+ */
+function extractGPA(message: string): number | null {
+  // Normalize: remove % signs, handle Filipino terms
+  const normalized = message
+    .replace(/%/, "")
+    .replace(/gwa/gi, "gpa")
+    .replace(/general average/gi, "gpa")
+    .replace(/grade/gi, "gpa");
+
+  // Pattern 1: "85 GPA", "GPA of 85", "GPA is 85"
+  const gpaExplicitMatch = normalized.match(
+    /(?:gpa\s*(?:of|is|:)?\s*)(\d+(?:\.\d+)?)/i
+  );
+  if (gpaExplicitMatch) {
+    const val = parseFloat(gpaExplicitMatch[1]);
+    if (val >= 50 && val <= 100) return val;
+  }
+
+  // Pattern 2: "85% GPA", "85 gpa", "85 general average"
+  const gpaBeforeMatch = normalized.match(
+    /(\d+(?:\.\d+)?)\s*(?:%?\s*gpa|%?\s*general\s*average|%?\s*gwa)/i
+  );
+  if (gpaBeforeMatch) {
+    const val = parseFloat(gpaBeforeMatch[1]);
+    if (val >= 50 && val <= 100) return val;
+  }
+
+  // Pattern 3: "I have an 85", "my gpa is 85", "with 85"
+  const contextPatterns = [
+    /(?:i\s*(?:have|got|earn|achiev)\s*(?:a|an)?\s*)(\d+(?:\.\d+)?)/i,
+    /(?:my\s*(?:gpa|grade|average|gwa)\s*(?:is|of|:)\s*)(\d+(?:\.\d+)?)/i,
+    /(?:with\s*(?:a|an)?\s*)(\d+(?:\.\d+)?)(?:\s*(?:gpa|grade|average|percent|%))/i,
+  ];
+
+  for (const pattern of contextPatterns) {
+    const match = normalized.match(pattern);
+    if (match) {
+      const val = parseFloat(match[1]);
+      if (val >= 50 && val <= 100) return val;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Extract strand mention from the user's message
+ */
+function extractStrand(message: string): string | null {
+  const strandPatterns: [RegExp, string][] = [
+    [/\bSTEM\b/i, "STEM"],
+    [/\bABM\b/i, "ABM"],
+    [/\bHUMSS\b/i, "HUMSS"],
+    [/\bGAS\b/i, "GAS"],
+    [/\bTVL\b/i, "TVL"],
+  ];
+
+  for (const [pattern, strand] of strandPatterns) {
+    if (pattern.test(message)) return strand;
+  }
+  return null;
+}
+
 // ─── Caching ────────────────────────────────────────────────────────────────
 
-let scholarshipsContext: string | null = null;
-let scholarshipsCacheTime = 0;
+let allScholarshipsContext: string | null = null;
+let allScholarshipsCacheTime = 0;
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 // Web search cache (short-lived)
 const webSearchCache = new Map<string, { results: string; sources: SourceReference[]; timestamp: number }>();
 const WEB_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 
-async function getScholarshipsContext(): Promise<string> {
-  const now = Date.now();
-  if (scholarshipsContext && now - scholarshipsCacheTime < CACHE_TTL) {
-    return scholarshipsContext;
-  }
-
-  const scholarships = await db.scholarship.findMany({
-    where: { isActive: true },
-    orderBy: { name: "asc" },
-  });
-
+/**
+ * Builds the scholarship context string from a list of scholarships.
+ * Includes priority courses information.
+ */
+function buildScholarshipsContext(
+  scholarships: {
+    name: string;
+    provider: string;
+    scholarshipType: string;
+    coverage: string;
+    coverageDetails: string | null;
+    isAcceptingApplications: boolean;
+    eligibleStrands: string;
+    minGPA: number;
+    maxAnnualIncome: number | null;
+    priorityCourses: string | null;
+    requirements: string;
+    deadline: string;
+    examType: string | null;
+    examSubjects: string | null;
+    websiteUrl: string | null;
+    description: string;
+  }[]
+): string {
   const lines = scholarships.map((s) => {
     const incomeInfo = s.maxAnnualIncome
       ? `Max annual family income: PHP ${s.maxAnnualIncome.toLocaleString()}`
@@ -50,25 +131,79 @@ async function getScholarshipsContext(): Promise<string> {
       s.examType && s.examType !== "none"
         ? `Exam type: ${s.examType}, Subjects: ${s.examSubjects || "N/A"}`
         : "No entrance exam required";
+    const priorityInfo = s.priorityCourses
+      ? `Priority Courses: ${s.priorityCourses}`
+      : "Open to all courses";
     return [
       `--- ${s.name} ---`,
       `Provider: ${s.provider}`,
       `Type: ${s.scholarshipType} | Coverage: ${s.coverage}`,
+      `Currently Accepting Applications: ${s.isAcceptingApplications ? "YES" : "NO"}`,
       `Coverage Details: ${s.coverageDetails || "Standard coverage"}`,
       `Eligible Strands: ${s.eligibleStrands}`,
-      `Minimum GPA: ${s.minGPA}%`,
+      `Minimum GPA Required: ${s.minGPA}%  ← STUDENT MUST HAVE GPA ≥ ${s.minGPA}% TO BE ELIGIBLE`,
       incomeInfo,
+      priorityInfo,
       `Requirements: ${s.requirements}`,
       `Deadline: ${s.deadline}`,
       examInfo,
-      `Website: ${s.websiteUrl || "N/A"}`,
+      `Application Page: ${s.websiteUrl || "N/A"}`,
       `Description: ${s.description}`,
     ].join("\n");
   });
 
-  scholarshipsContext = lines.join("\n\n");
-  scholarshipsCacheTime = now;
-  return scholarshipsContext;
+  return lines.join("\n\n");
+}
+
+async function getAllScholarshipsContext(): Promise<string> {
+  const now = Date.now();
+  if (allScholarshipsContext && now - allScholarshipsCacheTime < CACHE_TTL) {
+    return allScholarshipsContext;
+  }
+
+  const scholarships = await db.scholarship.findMany({
+    where: { isActive: true },
+    orderBy: { name: "asc" },
+  });
+
+  allScholarshipsContext = buildScholarshipsContext(scholarships);
+  allScholarshipsCacheTime = now;
+  return allScholarshipsContext;
+}
+
+/**
+ * Get a pre-filtered scholarship context based on the user's GPA and strand.
+ * This prevents the LLM from seeing scholarships the student isn't eligible for.
+ */
+async function getFilteredScholarshipsContext(
+  userGPA: number,
+  userStrand?: string | null
+): Promise<{ context: string; eligibleCount: number; totalCount: number; ineligible: { name: string; minGPA: number }[] }> {
+  const allScholarships = await db.scholarship.findMany({
+    where: { isActive: true },
+    orderBy: { name: "asc" },
+  });
+
+  const totalCount = allScholarships.length;
+
+  // Filter: scholarships where minGPA <= userGPA (student's GPA meets the minimum)
+  const eligible = allScholarships.filter((s) => s.minGPA <= userGPA);
+  const ineligible = allScholarships
+    .filter((s) => s.minGPA > userGPA)
+    .map((s) => ({ name: s.name, minGPA: s.minGPA }));
+
+  // Further filter by strand if provided
+  let filtered = eligible;
+  if (userStrand) {
+    filtered = eligible.filter(
+      (s) =>
+        s.eligibleStrands.includes(userStrand) ||
+        s.eligibleStrands.includes("All")
+    );
+  }
+
+  const context = buildScholarshipsContext(filtered);
+  return { context, eligibleCount: filtered.length, totalCount, ineligible };
 }
 
 // ─── Query Classification ───────────────────────────────────────────────────
@@ -89,7 +224,7 @@ AVAILABLE SCHOLARSHIP NAMES in our database:
 ${scholarshipNames.join(", ")}
 
 CLASSIFICATION RULES:
-1. If the question is about one of the listed scholarships AND asks for info that would be in our database (requirements, GPA, income, coverage, deadline, exam, strands), respond: needs_search=false
+1. If the question is about one of the listed scholarships AND asks for info that would be in our database (requirements, GPA, income, coverage, deadline, exam, strands, courses), respond: needs_search=false
 2. If the question asks about scholarships NOT in our list, or asks about current/upcoming application dates, or asks about external information (news, other programs, specific school details not in our data), respond: needs_search=true
 3. If the question asks about website features, how to use the site, exam tips, or general advice, respond: needs_search=false
 
@@ -230,6 +365,36 @@ YOUR PERSONALITY:
 - Celebrate their achievements and encourage them to apply
 
 ═══════════════════════════════════════════════════════════════
+CRITICAL ELIGIBILITY RULES (MUST FOLLOW STRICTLY):
+═══════════════════════════════════════════════════════════════
+
+When a student asks "What scholarships can I apply for?" or mentions their GPA, you MUST follow these rules:
+
+1. **GPA ELIGIBILITY IS STRICT**: A student with GPA X can ONLY be eligible for scholarships where "Minimum GPA Required" is ≤ X.
+   - Example: Student with 85% GPA → eligible for scholarships with minGPA 85% or LOWER (e.g., 75%, 80%, 83%, 85%)
+   - Example: Student with 85% GPA → NOT eligible for scholarships with minGPA 88%, 90%, 92%
+   - Example: Student with 92% GPA → eligible for scholarships with minGPA 92% or LOWER
+
+2. **NEVER recommend a scholarship the student is NOT eligible for** based on GPA. If a scholarship requires 90% and the student has 85%, that scholarship is NOT an option for them.
+
+3. **If the scholarship database section has been PRE-FILTERED** (indicated by a note saying "PRE-FILTERED"), then ALL scholarships listed are ones the student is GPA-eligible for. You can confidently recommend any of them.
+
+4. **If there are scholarships NOT listed** (because they were filtered out due to GPA), you may MENTION them as options the student does NOT yet qualify for, but clearly label them: "You don't currently meet the GPA requirement for these scholarships, but here are ones to aim for:" — and only do this if the student asks about other options or seems ambitious.
+
+5. **When listing eligible scholarships, also check:**
+   - Strand compatibility (the student's strand must be in the "Eligible Strands" list)
+   - Income requirements (if the student mentions family income, check against "Max annual family income")
+   - Application status (note if "Currently Accepting Applications: NO")
+   - Priority courses (mention if the scholarship has specific priority courses)
+
+6. **For each recommended scholarship, always state:**
+   - The minimum GPA required (confirming the student meets it)
+   - Whether it's currently accepting applications
+   - The eligible strands
+   - Priority courses (if the student mentions their intended course)
+   - Application deadline
+
+═══════════════════════════════════════════════════════════════
 CRITICAL ANTI-HALLUCINATION RULES (MUST FOLLOW):
 ═══════════════════════════════════════════════════════════════
 
@@ -260,8 +425,8 @@ CRITICAL ANTI-HALLUCINATION RULES (MUST FOLLOW):
 ═══════════════════════════════════════════════════════════════
 
 WHAT YOU CAN HELP WITH:
-1. **Scholarship Information** — Details about any scholarship in our database (requirements, deadlines, coverage, eligibility)
-2. **Eligibility Checking** — Help students understand if they qualify for specific scholarships based on their GPA, strand, and income
+1. **Scholarship Information** — Details about any scholarship in our database (requirements, deadlines, coverage, eligibility, priority courses)
+2. **Eligibility Checking** — Help students understand if they qualify for specific scholarships based on their GPA, strand, income, and intended course
 3. **Application Guidance** — Tips on preparing applications, documents needed, and how to stand out
 4. **Exam Preparation** — Advice on how to review for scholarship entrance exams (aptitude tests, academic exams, interviews)
 5. **Website Navigation** — How to use the Eligibility Checker, Scholarship Browser, and AI Exam Reviewer features
@@ -272,6 +437,8 @@ WEBSITE FEATURES YOU CAN EXPLAIN:
 - **Scholarship Browser**: Browse and filter all scholarships by type (government/private/merit), coverage (full/partial), and strand (STEM/ABM/HUMSS/GAS/TVL)
 - **AI Exam Reviewer**: Generate AI-powered practice questions tailored to specific scholarship exams with instant feedback and explanations
 - **AI Chatbot (that's me!)**: Ask any question about scholarships, eligibility, the website, or get study tips
+
+{ELIGIBILITY_NOTE}
 
 SCHOLARSHIP DATABASE:
 {SCHOLARSHIPS_CONTEXT}
@@ -297,8 +464,47 @@ export async function POST(request: NextRequest) {
     // Initialize SDK
     const zai = await ZAI.create();
 
-    // Get scholarships context
-    const scholarshipsContext = await getScholarshipsContext();
+    // ─── Step 0: Extract GPA and strand from the user's message ──────────
+    const userGPA = extractGPA(message);
+    const userStrand = extractStrand(message);
+
+    // ─── Step 1: Get scholarship context (filtered if GPA was mentioned) ──
+    let scholarshipsContext: string;
+    let eligibilityNote = "";
+
+    if (userGPA !== null) {
+      // Pre-filter scholarships based on the user's GPA
+      const filtered = await getFilteredScholarshipsContext(userGPA, userStrand);
+
+      scholarshipsContext = filtered.context;
+      eligibilityNote = [
+        `═══════════════════════════════════════════════════════════════`,
+        `PRE-FILTERED SCHOLARSHIP DATABASE (based on student's GPA: ${userGPA}%)`,
+        `═══════════════════════════════════════════════════════════════`,
+        ``,
+        `The student mentioned they have a GPA of ${userGPA}%.`,
+        userStrand ? `The student mentioned they are from the ${userStrand} strand.` : "",
+        `The scholarships listed below have been PRE-FILTERED to only include ones where the minimum GPA requirement is ≤ ${userGPA}%.`,
+        `This means the student IS GPA-eligible for ALL ${filtered.eligibleCount} scholarships listed below.`,
+        `There are ${filtered.ineligible.length} scholarships NOT shown because the student's GPA does not meet their minimum requirement:`,
+        ...filtered.ineligible.map(
+          (s) => `  - ${s.name} (requires ${s.minGPA}% GPA)`
+        ),
+        ``,
+        `IMPORTANT: Do NOT recommend any of the ineligible scholarships listed above as options the student can currently apply for. You may mention them as aspirational goals if the student asks about improving their GPA or future opportunities.`,
+        `═══════════════════════════════════════════════════════════════`,
+      ].join("\n");
+
+      // Add a database source
+      const dbSource: SourceReference = {
+        type: "database",
+        name: `ScholarAId Database (${filtered.eligibleCount} eligible for ${userGPA}% GPA)`,
+      };
+      // We'll add this to sources later
+    } else {
+      scholarshipsContext = await getAllScholarshipsContext();
+      eligibilityNote = "";
+    }
 
     // Get scholarship names for classification
     const scholarshipNames = (await db.scholarship.findMany({
@@ -306,16 +512,23 @@ export async function POST(request: NextRequest) {
       select: { name: true },
     })).map((s) => s.name);
 
-    // Step 1: Classify the query to determine if web search is needed
+    // Step 2: Classify the query to determine if web search is needed
     const classification = await classifyQuery(
       zai,
       message,
       scholarshipNames
     );
 
-    // Step 2: Perform web search if needed
+    // Step 3: Perform web search if needed
     let webSearchContext = "";
     let allSources: SourceReference[] = [];
+
+    if (userGPA !== null) {
+      allSources.push({
+        type: "database",
+        name: `ScholarAId Database (filtered by GPA ≥ ${userGPA}%)`,
+      });
+    }
 
     if (classification.needsWebSearch) {
       const searchResult = await performWebSearch(
@@ -328,7 +541,7 @@ export async function POST(request: NextRequest) {
       allSources.push(...searchResult.sources);
     }
 
-    // Step 3: Read web page if needed
+    // Step 4: Read web page if needed
     if (classification.needsPageRead && classification.pageUrl) {
       const pageResult = await readWebPage(zai, classification.pageUrl);
       if (pageResult.context) {
@@ -341,9 +554,11 @@ export async function POST(request: NextRequest) {
 
     // Build the system prompt with all context
     const systemPrompt = SYSTEM_PROMPT.replace(
-      "{SCHOLARSHIPS_CONTEXT}",
-      scholarshipsContext
-    ).replace("{WEB_SEARCH_CONTEXT}", webSearchContext);
+      "{ELIGIBILITY_NOTE}",
+      eligibilityNote
+    )
+      .replace("{SCHOLARSHIPS_CONTEXT}", scholarshipsContext)
+      .replace("{WEB_SEARCH_CONTEXT}", webSearchContext);
 
     // Build messages array for the LLM
     const messages = [
@@ -357,7 +572,7 @@ export async function POST(request: NextRequest) {
       { role: "user" as const, content: message },
     ];
 
-    // Step 4: Generate response with thinking enabled for better reasoning
+    // Step 5: Generate response with thinking enabled for better reasoning
     const completion = await zai.chat.completions.create({
       messages,
       thinking: { type: "enabled" },

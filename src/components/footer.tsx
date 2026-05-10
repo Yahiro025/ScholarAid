@@ -7,7 +7,6 @@ const quickLinks = [
   { label: 'Eligibility Checker', href: '#eligibility-checker' },
   { label: 'Scholarships', href: '#scholarships' },
   { label: 'AI Reviewer', href: '#ai-reviewer' },
-  { label: 'AI Chatbot', href: '#chatbot' },
 ]
 
 export function Footer() {

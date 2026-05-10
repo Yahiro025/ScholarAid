@@ -18,12 +18,14 @@ model Scholarship {
   eligibleStrands String   // comma-separated: STEM, ABM, HUMSS, GAS, TVL, etc.
   minGPA          Float    // minimum general average (e.g. 85, 88, 90)
   maxAnnualIncome Float?   // maximum annual family income in PHP
+  priorityCourses String?  // comma-separated priority courses (e.g. BS Computer Science, BS Biology)
   requirements    String   // comma-separated requirements
   deadline        String   // application deadline description
   examType        String?  // type of exam: aptitude, academic, essay, interview, none
   examSubjects    String?  // subjects covered in exam
   websiteUrl      String?
   isActive        Boolean  @default(true)
+  isAcceptingApplications Boolean @default(true) // whether the scholarship is currently accepting applications
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 }

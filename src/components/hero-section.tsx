@@ -1,7 +1,7 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { GraduationCap, Sparkles, Search, BookOpen, MessageCircle } from 'lucide-react'
+import { GraduationCap, Sparkles, Search, BookOpen, MessageCircle, Brain } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 const fadeUp = {
@@ -148,9 +148,9 @@ export function HeroSection() {
           custom={3}
           className="max-w-2xl mx-auto text-base sm:text-lg text-slate-600 mb-10 leading-relaxed"
         >
-          Discover scholarships you qualify for, check your eligibility instantly
-          with AI, and prepare for college entrance exams — all in one platform
-          designed for senior high school students in the Philippines.
+          Get AI-powered personalized scholarship recommendations based on your
+          unique profile, check your eligibility, and prepare for entrance exams —
+          all in one platform designed for senior high school students in the Philippines.
         </motion.p>
 
         {/* CTA Buttons */}
@@ -163,20 +163,20 @@ export function HeroSection() {
         >
           <Button
             size="lg"
-            className="group relative px-8 py-6 text-base font-semibold bg-amber-500 hover:bg-amber-600 text-white shadow-lg shadow-amber-500/25 hover:shadow-amber-500/40 transition-all duration-300 hover:scale-105"
-            onClick={() => document.getElementById('eligibility-checker')?.scrollIntoView({ behavior: 'smooth' })}
+            className="group relative px-8 py-6 text-base font-semibold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 transition-all duration-300 hover:scale-105"
+            onClick={() => document.getElementById('ai-matcher')?.scrollIntoView({ behavior: 'smooth' })}
           >
-            <Search className="w-5 h-5 mr-2 transition-transform group-hover:scale-110" />
-            Check Eligibility
+            <Brain className="w-5 h-5 mr-2 transition-transform group-hover:scale-110" />
+            Get AI Recommendations
           </Button>
           <Button
             size="lg"
             variant="outline"
-            className="group px-8 py-6 text-base font-semibold border-2 border-emerald-500 text-emerald-700 hover:bg-emerald-50 hover:border-emerald-600 transition-all duration-300 hover:scale-105"
-            onClick={() => document.getElementById('scholarships')?.scrollIntoView({ behavior: 'smooth' })}
+            className="group px-8 py-6 text-base font-semibold border-2 border-amber-500 text-amber-700 hover:bg-amber-50 hover:border-amber-600 transition-all duration-300 hover:scale-105"
+            onClick={() => document.getElementById('eligibility-checker')?.scrollIntoView({ behavior: 'smooth' })}
           >
-            <BookOpen className="w-5 h-5 mr-2 transition-transform group-hover:scale-110" />
-            Browse Scholarships
+            <Search className="w-5 h-5 mr-2 transition-transform group-hover:scale-110" />
+            Check Eligibility
           </Button>
         </motion.div>
 
@@ -189,7 +189,8 @@ export function HeroSection() {
           className="mt-14 flex flex-wrap items-center justify-center gap-3"
         >
           {[
-            { icon: Sparkles, label: 'AI-Powered Matching' },
+            { icon: Brain, label: 'AI-Powered Recommendations' },
+            { icon: Sparkles, label: 'Personalized Matching' },
             { icon: Search, label: 'Instant Eligibility Check' },
             { icon: BookOpen, label: 'Smart Exam Review' },
             { icon: MessageCircle, label: 'AI Chatbot Assistant' },

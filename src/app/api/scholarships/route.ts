@@ -11,43 +11,46 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get("search");
     const minGPA = searchParams.get("minGPA");
     const maxIncome = searchParams.get("maxIncome");
+    const accepting = searchParams.get("accepting");
 
-    // Build where clause
-    const where: Record<string, unknown> = {
-      isActive: true,
-    };
+    // Build where clause using AND conditions for correct logical grouping
+    const andConditions: Record<string, unknown>[] = [{ isActive: true }];
 
     // Filter by strand - check if the comma-separated eligibleStrands contains the strand
     if (strand) {
-      where.eligibleStrands = {
-        contains: strand,
-      };
+      andConditions.push({ eligibleStrands: { contains: strand } });
     }
 
     // Filter by scholarship type
     if (type) {
-      where.scholarshipType = type;
+      andConditions.push({ scholarshipType: type });
     }
 
     // Filter by coverage
     if (coverage) {
-      where.coverage = coverage;
+      andConditions.push({ coverage });
     }
 
-    // Text search on name and provider
+    // Filter by application status
+    if (accepting !== null) {
+      andConditions.push({ isAcceptingApplications: accepting === "true" });
+    }
+
+    // Text search on name and provider (OR within this group)
     if (search) {
-      where.OR = [
-        { name: { contains: search } },
-        { provider: { contains: search } },
-      ];
+      andConditions.push({
+        OR: [
+          { name: { contains: search } },
+          { provider: { contains: search } },
+        ],
+      });
     }
 
     // Filter by GPA - find scholarships where minGPA <= student's GPA
-    // This means the student meets the GPA requirement
     if (minGPA) {
       const gpa = parseFloat(minGPA);
       if (!isNaN(gpa)) {
-        where.minGPA = { lte: gpa };
+        andConditions.push({ minGPA: { lte: gpa } });
       }
     }
 
@@ -55,18 +58,16 @@ export async function GET(request: NextRequest) {
     if (maxIncome) {
       const income = parseFloat(maxIncome);
       if (!isNaN(income)) {
-        where.OR = Array.isArray(where.OR)
-          ? [
-              ...where.OR,
-              { maxAnnualIncome: { gte: income } },
-              { maxAnnualIncome: null },
-            ]
-          : [
-              { maxAnnualIncome: { gte: income } },
-              { maxAnnualIncome: null },
-            ];
+        andConditions.push({
+          OR: [
+            { maxAnnualIncome: { gte: income } },
+            { maxAnnualIncome: null },
+          ],
+        });
       }
     }
+
+    const where = andConditions.length === 1 ? andConditions[0] : { AND: andConditions };
 
     const scholarships = await db.scholarship.findMany({
       where,

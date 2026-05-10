@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   GraduationCap,
@@ -16,11 +16,15 @@ import {
   DollarSign,
   User,
   Sparkles,
+  Star,
+  Zap,
+  TrendingUp,
+  Target,
 } from 'lucide-react'
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Slider } from '@/components/ui/slider'
+import { Input } from '@/components/ui/input'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -34,6 +38,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Separator } from '@/components/ui/separator'
+import { Slider } from '@/components/ui/slider'
 import {
   Collapsible,
   CollapsibleContent,
@@ -46,6 +51,7 @@ interface EligibilityMatch {
   gpa: boolean
   strand: boolean
   income: boolean
+  course: boolean
 }
 
 interface ScholarshipWithMatch {
@@ -59,12 +65,14 @@ interface ScholarshipWithMatch {
   eligibleStrands: string
   minGPA: number
   maxAnnualIncome: number | null
+  priorityCourses: string | null
   requirements: string
   deadline: string
   examType: string | null
   examSubjects: string | null
   websiteUrl: string | null
   isActive: boolean
+  isAcceptingApplications: boolean
   createdAt: string
   updatedAt: string
   eligibilityMatch: EligibilityMatch
@@ -82,6 +90,29 @@ interface EligibilityResult {
 }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
+
+const GPA_MIN = 75
+const GPA_MAX = 100
+
+// GPA Tier definitions (Philippine DepEd honors system)
+const GPA_TIERS = [
+  { min: 98, label: 'With Highest Honors', color: 'text-amber-700', bg: 'bg-gradient-to-r from-amber-50 to-yellow-50', border: 'border-amber-300', icon: Star, iconColor: 'text-amber-500', tip: 'Outstanding! You qualify for the most competitive merit scholarships.' },
+  { min: 95, label: 'With High Honors', color: 'text-emerald-700', bg: 'bg-gradient-to-r from-emerald-50 to-teal-50', border: 'border-emerald-300', icon: Zap, iconColor: 'text-emerald-500', tip: 'Excellent! You meet the GPA requirement for top universities and prestigious scholarships.' },
+  { min: 90, label: 'With Honors', color: 'text-sky-700', bg: 'bg-gradient-to-r from-sky-50 to-blue-50', border: 'border-sky-300', icon: TrendingUp, iconColor: 'text-sky-500', tip: 'Great standing! Many competitive private and government scholarships are within your reach.' },
+  { min: 75, label: 'No Honors', color: 'text-slate-600', bg: 'bg-gradient-to-r from-slate-50 to-gray-50', border: 'border-slate-300', icon: BookOpen, iconColor: 'text-slate-500', tip: 'You still qualify for several programs. Focus on scholarships with lower GPA requirements and consider improving your grades.' },
+] as const
+
+function getGpaTier(gpa: number) {
+  return GPA_TIERS.find(tier => gpa >= tier.min) || GPA_TIERS[GPA_TIERS.length - 1]
+}
+
+// GPA bar color based on value
+function getGpaBarColor(gpa: number) {
+  if (gpa >= 98) return 'from-amber-400 to-yellow-400'
+  if (gpa >= 95) return 'from-emerald-400 to-teal-400'
+  if (gpa >= 90) return 'from-sky-400 to-blue-400'
+  return 'from-slate-400 to-gray-400'
+}
 
 const STRANDS = ['STEM', 'ABM', 'HUMSS', 'GAS', 'TVL'] as const
 
@@ -214,6 +245,7 @@ function EligibleScholarshipCard({ scholarship }: { scholarship: ScholarshipWith
             <EligibilityCriteriaBadge match={scholarship.eligibilityMatch.gpa} label="GPA" icon={BookOpen} />
             <EligibilityCriteriaBadge match={scholarship.eligibilityMatch.strand} label="Strand" icon={User} />
             <EligibilityCriteriaBadge match={scholarship.eligibilityMatch.income} label="Income" icon={DollarSign} />
+            <EligibilityCriteriaBadge match={scholarship.eligibilityMatch.course} label="Course" icon={Target} />
           </div>
 
           {/* Quick info */}
@@ -222,15 +254,33 @@ function EligibleScholarshipCard({ scholarship }: { scholarship: ScholarshipWith
             {scholarship.maxAnnualIncome && (
               <span>Max Income: PHP {scholarship.maxAnnualIncome.toLocaleString()}</span>
             )}
-            <span>Deadline: {scholarship.deadline}</span>
+            <span className="flex-1">Deadline: {scholarship.deadline}</span>
+            {scholarship.isAcceptingApplications ? (
+              <span className="text-green-600 font-medium flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
+                Now Accepting
+              </span>
+            ) : (
+              <span className="text-slate-400 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-slate-300 inline-block" />
+                Closed
+              </span>
+            )}
           </div>
 
-          {/* View Details Button */}
+          {/* Priority Courses */}
+          {scholarship.priorityCourses && (
+            <div className="text-xs text-slate-500">
+              <span className="font-medium text-slate-600">Priority Courses: </span>
+              <span className="line-clamp-2">{scholarship.priorityCourses}</span>
+            </div>
+          )}
+
+          {/* Application Page Button */}
           <div className="pt-1">
             <Button
-              variant="outline"
               size="sm"
-              className="w-full sm:w-auto border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:border-emerald-300 transition-colors"
+              className="w-full sm:w-auto bg-amber-500 hover:bg-amber-600 text-white shadow-sm shadow-amber-500/20 transition-all duration-200"
               onClick={() => {
                 if (scholarship.websiteUrl) {
                   window.open(scholarship.websiteUrl, '_blank', 'noopener,noreferrer')
@@ -238,7 +288,7 @@ function EligibleScholarshipCard({ scholarship }: { scholarship: ScholarshipWith
               }}
             >
               <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
-              View Details
+              Go to Application Page
             </Button>
           </div>
         </CardContent>
@@ -252,6 +302,7 @@ function IneligibleScholarshipCard({ scholarship }: { scholarship: ScholarshipWi
     { key: 'gpa' as const, label: 'GPA Requirement', icon: BookOpen },
     { key: 'strand' as const, label: 'Strand Requirement', icon: User },
     { key: 'income' as const, label: 'Income Requirement', icon: DollarSign },
+    { key: 'course' as const, label: 'Course Requirement', icon: Target },
   ].filter((c) => !scholarship.eligibilityMatch[c.key])
 
   return (
@@ -307,11 +358,11 @@ function IneligibleScholarshipCard({ scholarship }: { scholarship: ScholarshipWi
             />
           </div>
 
-          {/* View Details */}
+          {/* Application Page Link */}
           <Button
             variant="ghost"
             size="sm"
-            className="text-slate-500 hover:text-slate-700 h-7 text-xs"
+            className="text-amber-600 hover:text-amber-700 hover:bg-amber-50 h-7 text-xs"
             onClick={() => {
               if (scholarship.websiteUrl) {
                 window.open(scholarship.websiteUrl, '_blank', 'noopener,noreferrer')
@@ -319,7 +370,7 @@ function IneligibleScholarshipCard({ scholarship }: { scholarship: ScholarshipWi
             }}
           >
             <ExternalLink className="w-3 h-3 mr-1" />
-            View Details
+            Application Page
           </Button>
         </CardContent>
       </Card>
@@ -332,18 +383,108 @@ function IneligibleScholarshipCard({ scholarship }: { scholarship: ScholarshipWi
 export function EligibilityChecker() {
   // Form state
   const [gpa, setGpa] = useState(85)
+  const [gpaInput, setGpaInput] = useState('85')
   const [strand, setStrand] = useState('')
   const [annualIncome, setAnnualIncome] = useState<number | null>(null)
   const [scholarshipTypes, setScholarshipTypes] = useState<string[]>([])
+  const [targetCourse, setTargetCourse] = useState('')
 
   // Results state
   const [results, setResults] = useState<EligibilityResult | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [ineligibleOpen, setIneligibleOpen] = useState(false)
+  // GPA quick-pick feedback
+  const [gpaFeedback, setGpaFeedback] = useState<string | null>(null)
 
   // Ref for scrolling to results
   const resultsRef = useRef<HTMLDivElement>(null)
+
+  // Real-time GPA eligibility preview — counts scholarships where minGPA <= current gpa
+  const [gpaEligibleCount, setGpaEligibleCount] = useState<number | null>(null)
+
+  // Fetch count of scholarships eligible for current GPA (lightweight, client-side)
+  const fetchGpaPreview = async (gpaVal: number) => {
+    try {
+      const res = await fetch(`/api/scholarships?minGPA=${gpaVal}`)
+      if (res.ok) {
+        const data = await res.json()
+        setGpaEligibleCount(Array.isArray(data) ? data.length : 0)
+      }
+    } catch {
+      // silently fail — preview is optional
+    }
+  }
+
+  // Update GPA from slider or input and sync both
+  const updateGpa = (val: number) => {
+    const clamped = Math.min(GPA_MAX, Math.max(GPA_MIN, val))
+    setGpa(clamped)
+    setGpaInput(String(clamped))
+  }
+
+  // Handle GPA text input change (allow intermediate values while typing)
+  const handleGpaInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value
+    if (val === '') {
+      setGpaInput('')
+      return
+    }
+    const num = parseFloat(val)
+    if (isNaN(num)) return
+    // Allow typing intermediate values but clamp display
+    setGpaInput(val)
+    if (num >= GPA_MIN && num <= GPA_MAX) {
+      setGpa(num)
+    }
+  }
+
+  // Handle GPA input blur — clamp to valid range
+  const handleGpaInputBlur = () => {
+    let clamped: number
+    if (gpaInput === '' || isNaN(parseFloat(gpaInput))) {
+      clamped = GPA_MIN
+    } else {
+      clamped = Math.min(GPA_MAX, Math.max(GPA_MIN, parseFloat(gpaInput)))
+    }
+    setGpa(clamped)
+    setGpaInput(String(clamped))
+  }
+
+  // Handle slider change
+  const handleSliderChange = (values: number[]) => {
+    const val = values[0]
+    setGpa(val)
+    setGpaInput(String(val))
+  }
+
+  // Quick-pick GPA buttons
+  const GPA_QUICK_PICKS = [
+    { label: '75', value: 75, desc: 'Min' },
+    { label: '85', value: 85, desc: 'Good' },
+    { label: '90', value: 90, desc: 'Honors' },
+    { label: '95', value: 95, desc: 'Top' },
+    { label: '100', value: 100, desc: 'Perfect' },
+  ]
+
+  const handleQuickPick = (val: number) => {
+    updateGpa(val)
+    setGpaFeedback(`Set to ${val}%`)
+    setTimeout(() => setGpaFeedback(null), 1500)
+  }
+
+  // Current tier info
+  const currentTier = getGpaTier(gpa)
+  const TierIcon = currentTier.icon
+
+  // Debounced GPA eligibility preview
+  const fetchGpaPreviewCallback = useCallback(fetchGpaPreview, [])
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchGpaPreviewCallback(gpa)
+    }, 300) // debounce 300ms
+    return () => clearTimeout(timer)
+  }, [gpa, fetchGpaPreviewCallback])
 
   // Handle scholarship type toggle
   const handleTypeToggle = (type: string) => {
@@ -371,6 +512,7 @@ export function EligibilityChecker() {
           gpa,
           strand,
           annualIncome,
+          targetCourse: targetCourse.trim() || undefined,
           scholarshipTypes: scholarshipTypes.length > 0 ? scholarshipTypes : undefined,
         }),
       })
@@ -397,12 +539,15 @@ export function EligibilityChecker() {
   // Reset handler
   const handleReset = () => {
     setGpa(85)
+    setGpaInput('85')
     setStrand('')
     setAnnualIncome(null)
     setScholarshipTypes([])
+    setTargetCourse('')
     setResults(null)
     setError(null)
     setIneligibleOpen(false)
+    setGpaEligibleCount(null)
   }
 
   return (
@@ -442,30 +587,169 @@ export function EligibilityChecker() {
         >
           <Card className="border-slate-200 shadow-lg">
             <CardContent className="p-6 sm:p-8 space-y-8">
-              {/* 1. GPA Slider */}
+              {/* 1. GPA Input — Enhanced */}
               <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <Label className="text-sm font-semibold text-slate-800 flex items-center gap-2">
-                    <BookOpen className="w-4 h-4 text-emerald-500" />
-                    General Average (GPA)
-                  </Label>
-                  <span className="text-2xl font-bold bg-gradient-to-r from-emerald-600 to-teal-500 bg-clip-text text-transparent">
-                    {gpa}%
-                  </span>
+                <Label htmlFor="gpa-input" className="text-sm font-semibold text-slate-800 flex items-center gap-2">
+                  <BookOpen className="w-4 h-4 text-emerald-500" />
+                  General Average (GPA)
+                </Label>
+
+                {/* Main GPA display & input row */}
+                <div className="flex items-center gap-4">
+                  {/* Big animated GPA number */}
+                  <motion.div
+                    key={gpa}
+                    initial={{ scale: 0.9, opacity: 0.5 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                    className="flex items-baseline gap-0.5 shrink-0"
+                  >
+                    <span className={`text-4xl sm:text-5xl font-extrabold bg-gradient-to-r ${getGpaBarColor(gpa)} bg-clip-text text-transparent`}>
+                      {gpa}
+                    </span>
+                    <span className="text-lg font-semibold text-slate-400">%</span>
+                  </motion.div>
+
+                  {/* Tier badge */}
+                  <motion.div
+                    key={currentTier.label}
+                    initial={{ opacity: 0, x: -8 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.3 }}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border ${currentTier.bg} ${currentTier.border}`}
+                  >
+                    <TierIcon className={`w-3.5 h-3.5 ${currentTier.iconColor}`} />
+                    <span className={`text-xs font-semibold ${currentTier.color}`}>{currentTier.label}</span>
+                  </motion.div>
+
+                  {/* Eligibility preview pill */}
+                  {gpaEligibleCount !== null && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 ml-auto"
+                    >
+                      <GraduationCap className="w-3.5 h-3.5 text-emerald-600" />
+                      <span className="text-xs font-semibold text-emerald-700">
+                        {gpaEligibleCount} scholarship{gpaEligibleCount !== 1 ? 's' : ''}
+                      </span>
+                      <span className="text-xs text-emerald-500">GPA-eligible</span>
+                    </motion.div>
+                  )}
                 </div>
-                <Slider
-                  value={[gpa]}
-                  onValueChange={(val) => setGpa(val[0])}
-                  min={75}
-                  max={100}
-                  step={1}
-                  className="w-full"
-                />
-                <div className="flex justify-between text-xs text-slate-400">
-                  <span>75%</span>
-                  <span className="text-slate-500">Your current general average</span>
-                  <span>100%</span>
+
+                {/* Visual GPA progress bar */}
+                <div className="relative">
+                  <div className="h-3 rounded-full bg-slate-100 overflow-hidden">
+                    <motion.div
+                      className={`h-full rounded-full bg-gradient-to-r ${getGpaBarColor(gpa)}`}
+                      initial={false}
+                      animate={{ width: `${((gpa - GPA_MIN) / (GPA_MAX - GPA_MIN)) * 100}%` }}
+                      transition={{ type: 'spring', stiffness: 200, damping: 25 }}
+                    />
+                  </div>
+                  {/* Tier markers */}
+                  <div className="absolute inset-x-0 top-0 h-3 flex">
+                    {[90, 95, 98].map((threshold) => (
+                      <div
+                        key={threshold}
+                        className="absolute top-0 h-full"
+                        style={{ left: `${((threshold - GPA_MIN) / (GPA_MAX - GPA_MIN)) * 100}%` }}
+                      >
+                        <div className="w-px h-full bg-white/60" />
+                      </div>
+                    ))}
+                  </div>
                 </div>
+
+                {/* Slider + number input */}
+                <div className="flex items-center gap-4">
+                  <div className="flex-1">
+                    <Slider
+                      value={[gpa]}
+                      onValueChange={handleSliderChange}
+                      min={GPA_MIN}
+                      max={GPA_MAX}
+                      step={0.5}
+                      className="w-full [&_[data-slot=slider-track]]:h-2.5 [&_[data-slot=slider-track]]:rounded-full [&_[data-slot=slider-range]]:bg-gradient-to-r [&_[data-slot=slider-range]]:from-emerald-400 [&_[data-slot=slider-range]]:to-teal-400 [&_[data-slot=slider-thumb]]:w-5 [&_[data-slot=slider-thumb]]:h-5 [&_[data-slot=slider-thumb]]:border-2 [&_[data-slot=slider-thumb]]:border-emerald-500 [&_[data-slot=slider-thumb]]:shadow-md"
+                    />
+                  </div>
+                  <div className="relative w-24 shrink-0">
+                    <Input
+                      id="gpa-input"
+                      type="number"
+                      value={gpaInput}
+                      onChange={handleGpaInputChange}
+                      onBlur={handleGpaInputBlur}
+                      min={GPA_MIN}
+                      max={GPA_MAX}
+                      step={0.01}
+                      placeholder="GPA"
+                      className="h-10 text-center text-base font-semibold pr-8 border-slate-300 focus:border-emerald-400 focus:ring-emerald-400/20"
+                    />
+                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-400">%</span>
+                  </div>
+                </div>
+
+                {/* Quick-pick GPA buttons */}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-400 shrink-0">Quick pick:</span>
+                  <div className="flex gap-1.5">
+                    {GPA_QUICK_PICKS.map((pick) => (
+                      <button
+                        key={pick.value}
+                        type="button"
+                        onClick={() => handleQuickPick(pick.value)}
+                        className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all duration-200 border ${
+                          gpa === pick.value
+                            ? 'bg-emerald-100 border-emerald-300 text-emerald-700 shadow-sm'
+                            : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'
+                        }`}
+                      >
+                        {pick.label}
+                        <span className="ml-1 text-[10px] font-normal opacity-60">{pick.desc}</span>
+                      </button>
+                    ))}
+                  </div>
+                  {/* Feedback toast on quick pick */}
+                  <AnimatePresence>
+                    {gpaFeedback && (
+                      <motion.span
+                        initial={{ opacity: 0, y: 4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -4 }}
+                        className="text-xs text-emerald-600 font-medium"
+                      >
+                        {gpaFeedback}
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                {/* Tier-based tip */}
+                <motion.div
+                  key={currentTier.label}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.4 }}
+                  className={`flex items-start gap-2 p-3 rounded-lg ${currentTier.bg} border ${currentTier.border}`}
+                >
+                  <TierIcon className={`w-4 h-4 mt-0.5 shrink-0 ${currentTier.iconColor}`} />
+                  <p className={`text-xs ${currentTier.color}`}>
+                    {currentTier.tip}
+                  </p>
+                </motion.div>
+
+                {/* Mobile eligibility preview */}
+                {gpaEligibleCount !== null && (
+                  <div className="sm:hidden flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 w-fit">
+                    <GraduationCap className="w-3.5 h-3.5 text-emerald-600" />
+                    <span className="text-xs font-semibold text-emerald-700">
+                      {gpaEligibleCount} scholarship{gpaEligibleCount !== 1 ? 's' : ''}
+                    </span>
+                    <span className="text-xs text-emerald-500">GPA-eligible</span>
+                  </div>
+                )}
               </div>
 
               <Separator />
@@ -531,7 +815,47 @@ export function EligibilityChecker() {
 
               <Separator />
 
-              {/* 4. Scholarship Type Preference */}
+              {/* 4. Target Course */}
+              <div className="space-y-3">
+                <Label htmlFor="target-course" className="text-sm font-semibold text-slate-800 flex items-center gap-2">
+                  <Target className="w-4 h-4 text-emerald-500" />
+                  Intended College Course
+                  <span className="text-xs font-normal text-slate-400">(optional)</span>
+                </Label>
+                <Input
+                  id="target-course"
+                  type="text"
+                  placeholder="e.g. BS Computer Science, BS Nursing, BS Engineering..."
+                  value={targetCourse}
+                  onChange={(e) => setTargetCourse(e.target.value)}
+                  className="h-11 border-slate-300 focus:border-emerald-400 focus:ring-emerald-400/20"
+                />
+                <p className="text-xs text-slate-400">
+                  Some scholarships only accept specific priority courses. Enter your intended course to see which scholarships cover it.
+                </p>
+                {/* Quick-pick popular courses */}
+                <div className="flex flex-wrap gap-1.5">
+                  <span className="text-xs text-slate-400 shrink-0 self-center">Popular:</span>
+                  {['BS Computer Science', 'BS Nursing', 'BS Engineering', 'BS Accountancy', 'BS Education', 'BS Psychology'].map((course) => (
+                    <button
+                      key={course}
+                      type="button"
+                      onClick={() => setTargetCourse(targetCourse === course ? '' : course)}
+                      className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all duration-200 border ${
+                        targetCourse === course
+                          ? 'bg-emerald-100 border-emerald-300 text-emerald-700 shadow-sm'
+                          : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'
+                      }`}
+                    >
+                      {course}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* 5. Scholarship Type Preference */}
               <div className="space-y-3">
                 <Label className="text-sm font-semibold text-slate-800 flex items-center gap-2">
                   <GraduationCap className="w-4 h-4 text-emerald-500" />

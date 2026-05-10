@@ -6,6 +6,7 @@ import { EligibilityChecker } from '@/components/eligibility-checker'
 import { ScholarshipBrowser } from '@/components/scholarship-browser'
 import { AIReviewer } from '@/components/ai-reviewer'
 import { AIChatbot } from '@/components/ai-chatbot'
+import { AIScholarshipMatcher } from '@/components/ai-scholarship-matcher'
 import { Footer } from '@/components/footer'
 import { motion } from 'framer-motion'
 import { Brain, Sparkles, BookOpen, Target } from 'lucide-react'
@@ -15,6 +16,7 @@ export default function Home() {
   const [reviewerScholarshipName, setReviewerScholarshipName] = useState<string | undefined>()
   const [reviewerExamType, setReviewerExamType] = useState<string | undefined>()
   const [reviewerExamSubjects, setReviewerExamSubjects] = useState<string | undefined>()
+  const [reviewerResetKey, setReviewerResetKey] = useState(0)
   const reviewerRef = useRef<HTMLDivElement>(null)
 
   const handleStartReviewer = useCallback(async (scholarshipId: string) => {
@@ -36,6 +38,9 @@ export default function Home() {
       setReviewerScholarshipId(scholarshipId)
     }
 
+    // Increment reset key to force reviewer reset
+    setReviewerResetKey((prev) => prev + 1)
+
     // Scroll to the reviewer section
     setTimeout(() => {
       reviewerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -47,6 +52,8 @@ export default function Home() {
     setReviewerScholarshipName(undefined)
     setReviewerExamType(undefined)
     setReviewerExamSubjects(undefined)
+    // Increment reset key so the reviewer resets its internal state
+    setReviewerResetKey((prev) => prev + 1)
   }, [])
 
   return (
@@ -54,6 +61,9 @@ export default function Home() {
       <main className="flex-1">
         {/* Hero Section */}
         <HeroSection />
+
+        {/* AI Scholarship Matcher Section — the core AI-powered feature */}
+        <AIScholarshipMatcher />
 
         {/* Eligibility Checker Section */}
         <EligibilityChecker />
@@ -149,6 +159,7 @@ export default function Home() {
             className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8"
           >
             <AIReviewer
+              key={reviewerResetKey}
               scholarshipId={reviewerScholarshipId}
               scholarshipName={reviewerScholarshipName}
               examType={reviewerExamType}

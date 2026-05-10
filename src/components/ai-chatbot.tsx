@@ -169,7 +169,6 @@ export function AIChatbot() {
   const [hasNewMessage, setHasNewMessage] = useState(false)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const scrollAreaRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   // Auto-scroll to bottom on new messages
@@ -185,9 +184,10 @@ export function AIChatbot() {
   }, [isOpen])
 
   // Handle scroll position for scroll-to-bottom button
-  const handleScroll = () => {
-    if (scrollAreaRef.current) {
-      const { scrollTop, scrollHeight, clientHeight } = scrollAreaRef.current
+  const handleScroll = (event: React.UIEvent<HTMLDivElement>) => {
+    const target = event.currentTarget
+    if (target) {
+      const { scrollTop, scrollHeight, clientHeight } = target
       setShowScrollButton(scrollHeight - scrollTop - clientHeight > 100)
     }
   }
@@ -365,8 +365,6 @@ export function AIChatbot() {
             <div className="flex-1 relative overflow-hidden">
               <ScrollArea
                 className="h-[48vh] sm:h-[380px]"
-                onScroll={handleScroll}
-                ref={scrollAreaRef}
               >
                 <div className="p-4 space-y-4">
                   {messages.map((msg) => (

@@ -111,7 +111,7 @@ export function HeroSection() {
         >
           <GraduationCap className="w-4 h-4 text-emerald-600" />
           <span className="text-sm font-medium text-emerald-700">
-            Built for Filipino Senior High Students
+            Built for PUP Students & Incoming Iskolars
           </span>
           <Sparkles className="w-4 h-4 text-amber-500" />
         </motion.div>
@@ -137,7 +137,7 @@ export function HeroSection() {
           custom={2}
           className="text-lg sm:text-xl md:text-2xl font-semibold text-slate-800 mb-4"
         >
-          AI-Powered Scholarship Finder & Exam Reviewer for Filipino Students
+          AI-Powered Scholarship Finder & Exam Reviewer for PUP Students
         </motion.p>
 
         {/* Description */}
@@ -148,9 +148,10 @@ export function HeroSection() {
           custom={3}
           className="max-w-2xl mx-auto text-base sm:text-lg text-slate-600 mb-10 leading-relaxed"
         >
-          Get AI-powered personalized scholarship recommendations based on your
-          unique profile, check your eligibility, and prepare for entrance exams —
-          all in one platform designed for senior high school students in the Philippines.
+          Get AI-powered personalized scholarship recommendations for PUP, check your
+          eligibility for PUP-funded, government, and private scholarships, and prepare
+          for the PUPCET and other entrance exams — all in one platform designed for
+          PUP students and incoming Iskolars ng Bayan.
         </motion.p>
 
         {/* CTA Buttons */}

@@ -55,7 +55,7 @@ export function Footer() {
               Filipino Students
               <Sparkles className="w-3 h-3 text-emerald-400" />
             </p>
-            <p>&copy; {new Date().getFullYear()} ScholarAId. All rights reserved.</p>
+            <p>&copy; 2026 ScholarAId. All rights reserved.</p>
           </div>
         </div>
       </div>

@@ -31,6 +31,11 @@ interface SourceInfo {
   url?: string
 }
 
+interface ModelInfo {
+  provider: string
+  name: string
+}
+
 interface ChatMessage {
   id: string
   role: 'user' | 'assistant' | 'system'
@@ -38,6 +43,7 @@ interface ChatMessage {
   timestamp: string
   sources?: SourceInfo[]
   usedWebSearch?: boolean
+  model?: ModelInfo
 }
 
 // ─── Suggested Prompts ──────────────────────────────────────────────────────
@@ -256,6 +262,7 @@ export function AIChatbot() {
         timestamp: data.timestamp,
         sources: data.sources || [],
         usedWebSearch: data.usedWebSearch || false,
+        model: data.model || undefined,
       }
 
       setMessages((prev) => [...prev, assistantMessage])
@@ -405,6 +412,16 @@ export function AIChatbot() {
                             ? renderMessageContent(msg.content)
                             : msg.content}
                         </div>
+
+                        {/* Model indicator */}
+                        {msg.role === 'assistant' && msg.model && (
+                          <div className="mt-1.5 flex items-center gap-1">
+                            <Sparkles className="h-2.5 w-2.5 text-emerald-400/70" />
+                            <span className="text-[10px] text-slate-500">
+                              Powered by {msg.model.provider === 'zai' ? 'ScholarAId AI' : msg.model.provider === 'gemini' ? 'Google Gemini' : msg.model.provider === 'groq' ? 'Groq' : 'AI'}
+                            </span>
+                          </div>
+                        )}
 
                         {/* Source indicators for assistant messages */}
                         {msg.role === 'assistant' && msg.sources && msg.sources.length > 0 && (

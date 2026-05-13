@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import ZAI from "z-ai-web-dev-sdk";
+import { getChatModel, reviewerPrompt } from "@/lib/langchain";
+import { ReviewerQuestionsSchema } from "@/lib/langchain/schemas";
+import type { ExamQuestion } from "@/lib/langchain/schemas";
+
+// ─── Types ──────────────────────────────────────────────────────────────────
 
 interface ReviewerRequest {
   scholarshipId: string;
@@ -9,13 +13,7 @@ interface ReviewerRequest {
   numQuestions: number;
 }
 
-interface ExamQuestion {
-  question: string;
-  options: string[];
-  correctAnswer: number;
-  subject: string;
-  explanation: string;
-}
+// ─── Main Handler ───────────────────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
   try {
@@ -30,40 +28,55 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate numQuestions is a reasonable number
     const questionCount = Math.min(Math.max(parseInt(String(numQuestions)) || 10, 1), 50);
 
-    // Initialize the AI SDK
-    const zai = await ZAI.create();
+    // Get the LangChain model (use creative model for varied questions)
+    const model = getChatModel(undefined, { temperature: 0.8 });
 
-    const systemPrompt = "You are a scholarship exam reviewer generator for Filipino students. Generate multiple-choice questions that are similar to actual scholarship entrance exams in the Philippines.";
-
-    const userPrompt = `Generate ${questionCount} multiple-choice questions for the ${scholarshipName} scholarship exam. The exam type is ${examType} and covers these subjects: ${examSubjects}. 
-
-Format your response as a JSON array with the following structure for each question:
-{
-  "question": "The question text",
-  "options": ["Option A", "Option B", "Option C", "Option D"],
-  "correctAnswer": 0,
-  "subject": "The specific subject area",
-  "explanation": "A brief explanation of why the correct answer is right"
-}
-
-The correctAnswer should be the 0-based index of the correct option (0, 1, 2, or 3).
-Make the questions challenging but fair, similar to actual Philippine scholarship entrance exams.
-Ensure questions are distributed across the subjects mentioned.
-Return ONLY the JSON array, no additional text or markdown formatting.`;
-
-    const completion = await zai.chat.completions.create({
-      messages: [
-        { role: "assistant", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      thinking: { type: "disabled" },
+    // Format the prompt
+    const promptMessages = await reviewerPrompt.formatMessages({
+      num_questions: String(questionCount),
+      scholarship_name: scholarshipName,
+      exam_type: examType,
+      exam_subjects: examSubjects,
     });
 
-    // Extract the response content
-    const responseContent = completion.choices?.[0]?.message?.content;
+    // Try structured output first
+    try {
+      const structuredModel = model.withStructuredOutput?.(ReviewerQuestionsSchema);
+
+      if (structuredModel) {
+        const result = await structuredModel.invoke(promptMessages);
+
+        // Validate each question
+        const questions: ExamQuestion[] = result.questions.map((q, index) => ({
+          question: String(q.question),
+          options: q.options.map(String),
+          correctAnswer: Math.min(Math.max(Number(q.correctAnswer), 0), 3),
+          subject: String(q.subject || examSubjects.split(",")[0]?.trim() || "General"),
+          explanation: String(q.explanation || "No explanation provided"),
+        }));
+
+        return NextResponse.json({
+          questions,
+          scholarshipId,
+          scholarshipName,
+          examType,
+          examSubjects,
+          totalQuestions: questions.length,
+        });
+      }
+    } catch (structError) {
+      console.warn("[Reviewer API] Structured output failed, falling back to manual parsing:", structError);
+    }
+
+    // Fallback: manual JSON parsing
+    const response = await model.invoke(promptMessages);
+
+    const responseContent =
+      typeof response.content === "string"
+        ? response.content
+        : JSON.stringify(response.content);
 
     if (!responseContent) {
       return NextResponse.json(
@@ -75,9 +88,8 @@ Return ONLY the JSON array, no additional text or markdown formatting.`;
     // Parse the JSON questions from the response
     let questions: ExamQuestion[];
     try {
-      // Try to extract JSON from the response - it might be wrapped in markdown code blocks
       let jsonStr = responseContent.trim();
-      
+
       // Remove markdown code block if present
       const codeBlockMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
       if (codeBlockMatch) {
@@ -90,15 +102,13 @@ Return ONLY the JSON array, no additional text or markdown formatting.`;
         jsonStr = jsonArrayMatch[0];
       }
 
-      questions = JSON.parse(jsonStr);
+      const parsed = JSON.parse(jsonStr);
 
-      // Validate the parsed questions
-      if (!Array.isArray(questions)) {
-        throw new Error("Response is not an array");
-      }
+      // Handle both array and object with questions field
+      const rawQuestions = Array.isArray(parsed) ? parsed : parsed.questions || [];
 
-      // Validate each question has required fields
-      questions = questions.map((q: Record<string, unknown>, index: number) => {
+      // Validate each question
+      questions = rawQuestions.map((q: Record<string, unknown>, index: number) => {
         if (!q.question || !Array.isArray(q.options) || q.options.length !== 4 || typeof q.correctAnswer !== "number") {
           throw new Error(`Question ${index + 1} is missing required fields or has invalid format`);
         }
@@ -111,10 +121,10 @@ Return ONLY the JSON array, no additional text or markdown formatting.`;
         };
       });
     } catch (parseError) {
-      console.error("Failed to parse AI response:", parseError);
-      console.error("Raw AI response:", responseContent);
+      console.error("[Reviewer API] Failed to parse AI response:", parseError);
+      console.error("[Reviewer API] Raw AI response:", responseContent);
       return NextResponse.json(
-        { 
+        {
           error: "Failed to parse generated questions",
           rawResponse: responseContent,
         },
@@ -131,7 +141,7 @@ Return ONLY the JSON array, no additional text or markdown formatting.`;
       totalQuestions: questions.length,
     });
   } catch (error) {
-    console.error("Error generating reviewer:", error);
+    console.error("[Reviewer API] Error generating reviewer:", error);
     return NextResponse.json(
       { error: "Failed to generate reviewer" },
       { status: 500 }

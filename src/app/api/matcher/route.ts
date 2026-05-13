@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import ZAI from "z-ai-web-dev-sdk";
+import { getStructuredModel, matcherAnalysisPrompt } from "@/lib/langchain";
+import { MatcherAnalysisSchema } from "@/lib/langchain/schemas";
+import type { MatcherAnalysis } from "@/lib/langchain/schemas";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -151,14 +153,14 @@ async function ruleBasedFilter(
   return { eligible, nearMiss };
 }
 
-// ─── AI-Powered Analysis ────────────────────────────────────────────────────
+// ─── AI-Powered Analysis with LangChain ─────────────────────────────────────
 
 async function generateAIAnalysis(
   studentProfile: MatcherRequest,
   eligible: RuleBasedMatch[],
   nearMiss: RuleBasedMatch[]
-): Promise<string> {
-  const zai = await ZAI.create();
+): Promise<MatcherAnalysis | null> {
+  const model = getStructuredModel();
 
   const eligibleContext = eligible
     .slice(0, 8)
@@ -196,83 +198,7 @@ Missing criteria: ${[
     )
     .join("\n\n");
 
-  const systemPrompt = `You are an AI Scholarship Advisor for Filipino senior high school students. You analyze student profiles and provide deeply personalized, actionable scholarship recommendations.
-
-You are given:
-1. A student's profile (GPA, strand, income, target course, interests, strengths)
-2. A list of scholarships they are ELIGIBLE for (rule-based pre-filter)
-3. A list of scholarships they are NEAR-MISS for (close but not fully eligible)
-
-Your job is to provide INTELLIGENT ANALYSIS that goes far beyond what simple rule-based filtering can do. You must:
-
-═══════════════════════════════════════════════════════════════
-OUTPUT FORMAT — Respond in this EXACT JSON structure:
-═══════════════════════════════════════════════════════════════
-
-{
-  "profileInsight": {
-    "strengths": ["strength1", "strength2"],
-    "weaknesses": ["weakness1", "weakness2"],
-    "opportunities": ["opportunity1", "opportunity2"],
-    "overallAssessment": "2-3 sentence personalized assessment of the student's scholarship prospects"
-  },
-  "topRecommendations": [
-    {
-      "scholarshipName": "name",
-      "matchReason": "1-2 sentences explaining WHY this is a good fit for THIS specific student",
-      "applicationStrategy": "1-2 sentences of specific strategy for this application",
-      "readinessLevel": "high or medium or low",
-      "keyAction": "The single most important thing to do to strengthen the application"
-    }
-  ],
-  "applicationReadiness": {
-    "overallScore": 0-100,
-    "breakdown": {
-      "academicReadiness": 0-100,
-      "documentReadiness": 0-100,
-      "examReadiness": 0-100,
-      "timelineReadiness": 0-100
-    },
-    "missingDocuments": ["doc1", "doc2"],
-    "improvementTips": ["tip1", "tip2"]
-  },
-  "nearMissAnalysis": [
-    {
-      "scholarshipName": "name",
-      "whatToImprove": "What the student needs to do to become eligible",
-      "realisticTimeline": "How long it might take to become eligible"
-    }
-  ],
-  "applicationTimeline": [
-    {
-      "scholarshipName": "name",
-      "deadlineNote": "When to apply / current status",
-      "priority": "urgent or high or medium or low"
-    }
-  ]
-}
-
-ANALYSIS GUIDELINES:
-
-1. STRENGTHS: Identify genuine strengths from the student's profile. Be specific.
-2. MATCH REASONS: Go beyond "you meet the GPA requirement." Analyze HOW the student's profile aligns with the scholarship's priorities.
-3. APPLICATION STRATEGY: Give SPECIFIC, ACTIONABLE advice. Not "prepare well" but concrete steps.
-4. READINESS ASSESSMENT: Be realistic. Consider academic, documents, exam prep, and timeline.
-5. NEAR-MISS ANALYSIS: Provide a realistic path to eligibility for close scholarships.
-6. TIMELINE: Prioritize scholarships by deadline urgency and likelihood of success.
-7. INTEREST ALIGNMENT: Use the student's interests to personalize recommendations.
-8. FILIPINO CONTEXT: Consider the Philippine academic system, DepEd grading, CHED requirements.
-
-CRITICAL RULES:
-- ONLY recommend scholarships from the ELIGIBLE list for topRecommendations
-- ONLY use scholarships from the NEAR-MISS list for nearMissAnalysis
-- NEVER invent scholarship names or details
-- Return ONLY valid JSON — no markdown, no comments, no extra text
-- Keep all text concise but insightful
-- For topRecommendations, include at most 5 scholarships, ranked by fit quality
-- For nearMissAnalysis, include at most 3 scholarships`;
-
-  const userMessage = `STUDENT PROFILE:
+  const studentProfileText = `STUDENT PROFILE:
 - GPA: ${studentProfile.gpa}%
 - Academic Strand: ${studentProfile.strand}
 - Annual Family Income: PHP ${studentProfile.annualIncome.toLocaleString()}
@@ -290,25 +216,78 @@ ${nearMissContext || "None found."}
 Analyze this student's profile and provide personalized recommendations.`;
 
   try {
-    const completion = await zai.chat.completions.create({
-      messages: [
-        { role: "assistant" as const, content: systemPrompt },
-        { role: "user" as const, content: userMessage },
-      ],
-      thinking: { type: "enabled" },
+    // Try structured output with the model
+    const structuredModel = model.withStructuredOutput?.(MatcherAnalysisSchema);
+
+    if (structuredModel) {
+      const promptMessages = await matcherAnalysisPrompt.formatMessages({
+        student_profile: studentProfileText,
+      });
+      const result = await structuredModel.invoke(promptMessages);
+      return result as MatcherAnalysis;
+    }
+
+    // Fallback: manual JSON parsing
+    const promptMessages = await matcherAnalysisPrompt.formatMessages({
+      student_profile: studentProfileText,
     });
+    const response = await model.invoke(promptMessages);
 
-    const response = completion.choices?.[0]?.message?.content || "";
+    const content =
+      typeof response.content === "string"
+        ? response.content
+        : JSON.stringify(response.content);
 
-    const cleaned = response
+    const cleaned = content
       .replace(/```json\n?/g, "")
       .replace(/```\n?/g, "")
       .trim();
 
-    return cleaned;
+    return MatcherAnalysisSchema.parse(JSON.parse(cleaned));
   } catch (error) {
-    console.error("AI analysis failed:", error);
-    throw new Error("AI analysis failed");
+    console.error("[Matcher API] AI analysis failed:", error);
+
+    // Return a basic fallback analysis
+    return {
+      profileInsight: {
+        strengths: [`${studentProfile.gpa}% GPA`],
+        weaknesses: [],
+        opportunities: eligible.filter((s) => s.isAcceptingApplications).length > 0
+          ? [`${eligible.filter((s) => s.isAcceptingApplications).length} scholarships currently accepting applications`]
+          : [],
+        overallAssessment: `Based on your profile, you are eligible for ${eligible.length} scholarships. ${eligible.filter((s) => s.isAcceptingApplications).length} are currently accepting applications.`,
+      },
+      topRecommendations: eligible.slice(0, 3).map((s) => ({
+        scholarshipName: s.name,
+        matchReason: `You meet all eligibility criteria for this scholarship.`,
+        applicationStrategy: `Prepare your documents and apply before the deadline.`,
+        readinessLevel: "medium" as const,
+        keyAction: "Gather required documents and submit your application",
+      })),
+      applicationReadiness: {
+        overallScore: 50,
+        breakdown: {
+          academicReadiness: studentProfile.gpa >= 90 ? 80 : studentProfile.gpa >= 85 ? 70 : 60,
+          documentReadiness: 50,
+          examReadiness: 50,
+          timelineReadiness: 50,
+        },
+        missingDocuments: ["Updated transcript", "Certificate of enrollment"],
+        improvementTips: ["Prepare all required documents early", "Review exam topics if applicable"],
+      },
+      nearMissAnalysis: nearMiss.slice(0, 2).map((s) => ({
+        scholarshipName: s.name,
+        whatToImprove: !s.eligibilityMatch.gpa
+          ? `Improve GPA to at least ${s.minGPA}%`
+          : "Meet the remaining eligibility criteria",
+        realisticTimeline: "1-2 semesters",
+      })),
+      applicationTimeline: eligible.slice(0, 5).map((s) => ({
+        scholarshipName: s.name,
+        deadlineNote: s.isAcceptingApplications ? "Currently accepting" : `Deadline: ${s.deadline}`,
+        priority: s.isAcceptingApplications ? "high" as const : "medium" as const,
+      })),
+    };
   }
 }
 
@@ -349,19 +328,12 @@ export async function POST(request: NextRequest) {
       scholarshipTypes: scholarshipTypes || [],
     });
 
-    // Step 2: AI-powered intelligent analysis
-    let aiAnalysis = null;
-    try {
-      const aiResponse = await generateAIAnalysis(
-        { gpa, strand, annualIncome, targetCourse, interests, strengths, scholarshipTypes },
-        eligible,
-        nearMiss
-      );
-      aiAnalysis = JSON.parse(aiResponse);
-    } catch (parseError) {
-      console.error("Failed to parse AI analysis:", parseError);
-      aiAnalysis = null;
-    }
+    // Step 2: AI-powered intelligent analysis with LangChain
+    const aiAnalysis = await generateAIAnalysis(
+      { gpa, strand, annualIncome, targetCourse, interests, strengths, scholarshipTypes },
+      eligible,
+      nearMiss
+    );
 
     return NextResponse.json({
       eligible,
@@ -375,7 +347,7 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("Error in matcher API:", error);
+    console.error("[Matcher API] Error:", error);
     return NextResponse.json(
       { error: "Failed to generate recommendations. Please try again." },
       { status: 500 }

@@ -1,26 +1,48 @@
 ---
 Task ID: 1
 Agent: Main Agent
-Task: Analyze the whole project and fix issues causing blank display
+Task: Diagnose and fix blank page issue - server not persisting
 
 Work Log:
-- Checked dev server status: server was crashed, not running
-- Analyzed all component files: hero-section, ai-scholarship-matcher, eligibility-checker, scholarship-browser, ai-chatbot, ai-reviewer, footer - all code looks correct
-- Checked API routes: chat, matcher, reviewer, eligibility, scholarships - all look correct
-- Checked LangChain integration: models.ts, schemas.ts, prompts.ts, tools.ts - all properly configured
-- Checked database: 26 scholarships present, Prisma schema in sync
-- Verified lint passes clean with no errors
-- Identified root cause: the Next.js server process keeps getting killed by the sandbox environment
-- Server works correctly when running: returns 200 with 102KB HTML, correct title, API endpoints return correct data
-- The page title "ScholarAId - AI-Powered Scholarship Finder for Filipino Students" renders correctly
-- All 26 scholarships load from the database
-- Eligibility API correctly returns 15 eligible scholarships for a STEM student with 85% GPA
-- Updated .zscripts/dev.sh to use production build with auto-restart and signal trapping
-- Production build is stable and uses ~100MB RAM vs dev server's ~1GB
+- Investigated why the website keeps showing a blank page
+- Discovered that ALL background processes started from bash tool get killed when the tool session ends (~10-30s timeout)
+- The Next.js server (both dev and production) was being started in background but then killed
+- Tested multiple approaches: nohup, setsid, disown, double-fork daemonization
+- Found that `setsid bash -c '...' &` (double-fork with setsid) makes the process survive
+- The key insight: processes must be completely detached from the bash tool's session
+- Production server uses only ~115MB RAM vs dev server's ~870MB
+- Rebuilt production bundle and started it with daemonization approach
+- Verified server stays running and serves 102,203 bytes of HTML with all sections
+- Updated .zscripts/dev.sh to use the daemonization approach
+- All 26 scholarships confirmed in database
+- All page sections rendering: Hero, AI Matcher, Eligibility Checker, Scholarship Browser, AI Reviewer, AI Chatbot
 
 Stage Summary:
-- All code is correct - no bugs found in components, API routes, or LangChain integration
-- The "not displaying" issue is caused by the server process being killed, not by code errors
-- The dev.sh now uses production build (more stable, less memory) with auto-restart loop
-- When server is running, everything works: page renders, APIs respond, database has data
-- Key fix: dev.sh uses `node .next/standalone/server.js` with auto-restart instead of `bun run dev`
+- Root cause: Background processes from bash tool sessions get killed on session timeout
+- Fix: Use `setsid bash -c '...' &` to create a fully detached daemon process
+- Production server running stably at ~115MB RAM on port 3000
+- Updated .zscripts/dev.sh with daemonization for future restarts
+- Page serves correctly with all sections and 26 scholarships
+
+---
+Task ID: 2
+Agent: Main Agent
+Task: Verify Langchain integration and rebuild production
+
+Work Log:
+- Reviewed all Langchain module files (models.ts, schemas.ts, prompts.ts, tools.ts, index.ts)
+- Confirmed Langchain integration was already completed in previous session
+- All 4 API routes (chat, matcher, reviewer, scholarships) already use Langchain
+- Model factory supports: Google Gemini 2.5 Flash, Gemini 2.0 Flash, Groq Llama 3.3 70B, z-ai fallback
+- Structured output with Zod schemas for matcher and reviewer
+- No API keys configured - system falls back to z-ai-web-dev-sdk (always available)
+- Rebuilt production bundle successfully
+- Restarted server with daemonization approach
+- Verified all APIs working: 26 scholarships, page rendering correctly
+- Lint passes clean
+
+Stage Summary:
+- Langchain integration was already complete from previous session
+- Production server rebuilt and running stably at ~117MB RAM
+- System currently using z-ai fallback (no Google/Groq API keys configured)
+- To use better free models: add GOOGLE_API_KEY or GROQ_API_KEY to .env

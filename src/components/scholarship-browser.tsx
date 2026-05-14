@@ -68,8 +68,11 @@ interface ScholarshipBrowserProps {
 const TYPE_FILTERS = [
   { value: '', label: 'All' },
   { value: 'government', label: 'Government' },
-  { value: 'private', label: 'Private' },
-  { value: 'merit', label: 'Merit-based' },
+  { value: 'university', label: 'University-Funded' },
+  { value: 'private', label: 'Private & Corporate' },
+  { value: 'merit', label: 'Merit-Based' },
+  { value: 'financial-need', label: 'Need-Based' },
+  { value: 'stem-focused', label: 'STEM Focused' },
 ] as const
 
 const COVERAGE_FILTERS = [
@@ -107,6 +110,16 @@ function getTypeColor(type: string) {
         icon: 'text-emerald-500',
         hoverBorder: 'hover:border-emerald-300',
       }
+    case 'university':
+      return {
+        strip: 'bg-violet-500',
+        bg: 'bg-violet-50',
+        border: 'border-violet-200',
+        text: 'text-violet-700',
+        badge: 'bg-violet-100 text-violet-800 border-violet-200',
+        icon: 'text-violet-500',
+        hoverBorder: 'hover:border-violet-300',
+      }
     case 'private':
       return {
         strip: 'bg-amber-500',
@@ -127,6 +140,27 @@ function getTypeColor(type: string) {
         badge: 'bg-teal-100 text-teal-800 border-teal-200',
         icon: 'text-teal-500',
         hoverBorder: 'hover:border-teal-300',
+      }
+    case 'financial-need':
+    case 'need-based':
+      return {
+        strip: 'bg-rose-500',
+        bg: 'bg-rose-50',
+        border: 'border-rose-200',
+        text: 'text-rose-700',
+        badge: 'bg-rose-100 text-rose-800 border-rose-200',
+        icon: 'text-rose-500',
+        hoverBorder: 'hover:border-rose-300',
+      }
+    case 'stem-focused':
+      return {
+        strip: 'bg-sky-500',
+        bg: 'bg-sky-50',
+        border: 'border-sky-200',
+        text: 'text-sky-700',
+        badge: 'bg-sky-100 text-sky-800 border-sky-200',
+        icon: 'text-sky-500',
+        hoverBorder: 'hover:border-sky-300',
       }
     default:
       return {
@@ -158,17 +192,21 @@ function formatTypeLabel(type: string): string {
   switch (type.toLowerCase()) {
     case 'government':
       return 'Government'
+    case 'university':
+      return 'University-Funded'
     case 'private':
-      return 'Private'
+      return 'Private & Corporate'
     case 'merit':
     case 'merit-based':
-      return 'Merit-based'
+      return 'Merit-Based'
     case 'academic':
       return 'Academic'
     case 'athletic':
       return 'Athletic'
     case 'financial-need':
-      return 'Financial Need'
+      return 'Need-Based'
+    case 'stem-focused':
+      return 'STEM Focused'
     default:
       return type.charAt(0).toUpperCase() + type.slice(1)
   }

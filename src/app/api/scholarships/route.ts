@@ -21,9 +21,31 @@ export async function GET(request: NextRequest) {
       andConditions.push({ eligibleStrands: { contains: strand } });
     }
 
-    // Filter by scholarship type
+    // Filter by scholarship type (handle virtual types)
     if (type) {
-      andConditions.push({ scholarshipType: type });
+      switch (type) {
+        case "university":
+          // University-funded: scholarships directly typed as university
+          andConditions.push({ scholarshipType: "university" });
+          break;
+        case "stem-focused":
+          // STEM-focused: scholarships typed as stem-focused
+          andConditions.push({ scholarshipType: "stem-focused" });
+          break;
+        case "financial-need":
+          // Need-based: includes financial-need type
+          andConditions.push({
+            OR: [
+              { scholarshipType: "financial-need" },
+              { scholarshipType: "need-based" },
+            ],
+          });
+          break;
+        default:
+          // Direct match for: government, private, merit, etc.
+          andConditions.push({ scholarshipType: type });
+          break;
+      }
     }
 
     // Filter by coverage

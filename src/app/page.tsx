@@ -9,7 +9,19 @@ import { AIChatbot } from '@/components/ai-chatbot'
 import { AIScholarshipMatcher } from '@/components/ai-scholarship-matcher'
 import { Footer } from '@/components/footer'
 import { motion } from 'framer-motion'
-import { Brain, Sparkles, BookOpen, Target } from 'lucide-react'
+import { Brain, Sparkles, BookOpen, Target, ArrowRight } from 'lucide-react'
+
+const sectionReveal = {
+  hidden: { opacity: 0, y: 20 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.6,
+      ease: [0.25, 0.46, 0.45, 0.94],
+    },
+  },
+}
 
 export default function Home() {
   const [reviewerScholarshipId, setReviewerScholarshipId] = useState<string | undefined>()
@@ -20,7 +32,6 @@ export default function Home() {
   const reviewerRef = useRef<HTMLDivElement>(null)
 
   const handleStartReviewer = useCallback(async (scholarshipId: string) => {
-    // Fetch scholarship details to pass to the reviewer
     try {
       const res = await fetch(`/api/scholarships?search=`)
       if (res.ok) {
@@ -34,14 +45,11 @@ export default function Home() {
         }
       }
     } catch {
-      // Fallback: just set the ID
       setReviewerScholarshipId(scholarshipId)
     }
 
-    // Increment reset key to force reviewer reset
     setReviewerResetKey((prev) => prev + 1)
 
-    // Scroll to the reviewer section
     setTimeout(() => {
       reviewerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }, 100)
@@ -52,7 +60,6 @@ export default function Home() {
     setReviewerScholarshipName(undefined)
     setReviewerExamType(undefined)
     setReviewerExamSubjects(undefined)
-    // Increment reset key so the reviewer resets its internal state
     setReviewerResetKey((prev) => prev + 1)
   }, [])
 
@@ -62,30 +69,38 @@ export default function Home() {
         {/* Hero Section */}
         <HeroSection />
 
-        {/* AI Scholarship Matcher Section — the core AI-powered feature */}
+        <div className="section-divider" />
+
+        {/* AI Scholarship Matcher Section */}
         <AIScholarshipMatcher />
+
+        <div className="section-divider" />
 
         {/* Eligibility Checker Section */}
         <EligibilityChecker />
 
+        <div className="section-divider" />
+
         {/* Scholarship Browser Section */}
         <ScholarshipBrowser onStartReviewer={handleStartReviewer} />
+
+        <div className="section-divider" />
 
         {/* AI Exam Reviewer Section */}
         <section
           ref={reviewerRef}
           id="ai-reviewer"
-          className="relative py-16 sm:py-20 bg-gradient-to-b from-white via-emerald-50/30 to-white"
+          className="relative py-16 sm:py-20 bg-gradient-to-b from-[#FAFAF8] via-emerald-50/30 to-[#FAFAF8]"
         >
           {/* Section header */}
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 mb-10 text-center">
             <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
+              variants={sectionReveal}
+              initial="hidden"
+              whileInView="visible"
               viewport={{ once: true }}
-              transition={{ duration: 0.6 }}
             >
-              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-100/80 border border-emerald-200/60 mb-6">
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-50 border border-emerald-200/60 mb-6">
                 <Brain className="w-4 h-4 text-emerald-600" />
                 <span className="text-sm font-medium text-emerald-700">
                   AI-Powered Review
@@ -93,7 +108,7 @@ export default function Home() {
                 <Sparkles className="w-4 h-4 text-amber-500" />
               </div>
 
-              <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-800 mb-4">
+              <h2 className="text-3xl sm:text-4xl font-extrabold font-heading text-slate-800 mb-4 tracking-tight">
                 Smart Exam{' '}
                 <span className="bg-gradient-to-r from-emerald-600 to-teal-500 bg-clip-text text-transparent">
                   Reviewer
@@ -109,10 +124,11 @@ export default function Home() {
 
             {/* Feature highlights */}
             <motion.div
-              initial={{ opacity: 0, y: 15 }}
-              whileInView={{ opacity: 1, y: 0 }}
+              variants={sectionReveal}
+              initial="hidden"
+              whileInView="visible"
               viewport={{ once: true }}
-              transition={{ duration: 0.6, delay: 0.2 }}
+              transition={{ delay: 0.15 }}
               className="mt-8 flex flex-wrap justify-center gap-4"
             >
               {[
@@ -134,9 +150,9 @@ export default function Home() {
               ].map(({ icon: Icon, label, desc }) => (
                 <div
                   key={label}
-                  className="flex items-center gap-3 rounded-lg bg-white border border-slate-200 px-4 py-3 shadow-sm"
+                  className="flex items-center gap-3 rounded-xl bg-white border border-slate-200/80 px-4 py-3 shadow-sm"
                 >
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-100">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-50 border border-emerald-100">
                     <Icon className="h-4 w-4 text-emerald-600" />
                   </div>
                   <div className="text-left">
@@ -152,10 +168,11 @@ export default function Home() {
 
           {/* Reviewer component */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
+            variants={sectionReveal}
+            initial="hidden"
+            whileInView="visible"
             viewport={{ once: true }}
-            transition={{ duration: 0.6, delay: 0.3 }}
+            transition={{ delay: 0.25 }}
             className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8"
           >
             <AIReviewer

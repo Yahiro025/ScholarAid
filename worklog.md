@@ -1,48 +1,58 @@
+# ScholarAId Worklog
+
 ---
 Task ID: 1
 Agent: Main Agent
-Task: Diagnose and fix blank page issue - server not persisting
+Task: Professional-grade website redesign
 
 Work Log:
-- Investigated why the website keeps showing a blank page
-- Discovered that ALL background processes started from bash tool get killed when the tool session ends (~10-30s timeout)
-- The Next.js server (both dev and production) was being started in background but then killed
-- Tested multiple approaches: nohup, setsid, disown, double-fork daemonization
-- Found that `setsid bash -c '...' &` (double-fork with setsid) makes the process survive
-- The key insight: processes must be completely detached from the bash tool's session
-- Production server uses only ~115MB RAM vs dev server's ~870MB
-- Rebuilt production bundle and started it with daemonization approach
-- Verified server stays running and serves 102,203 bytes of HTML with all sections
-- Updated .zscripts/dev.sh to use the daemonization approach
-- All 26 scholarships confirmed in database
-- All page sections rendering: Hero, AI Matcher, Eligibility Checker, Scholarship Browser, AI Reviewer, AI Chatbot
+- Read and analyzed all existing project files (globals.css, layout.tsx, page.tsx, hero-section.tsx, footer.tsx, and all other components)
+- Updated globals.css with complete design system overhaul:
+  - Added Plus Jakarta Sans (headings) and DM Sans (body) Google Fonts
+  - Warmed background to oklch(0.985 0.004 95) — subtle warm off-white
+  - Updated --primary to richer emerald oklch(0.517 0.153 163)
+  - Added custom utility classes: .bg-dot-pattern, .bg-grid-dark, .glass-card, .section-divider
+  - Added custom emerald scrollbar styling
+  - Added heading letter-spacing (-0.025em) and font-family rules
+  - Added .animated-underline keyframe animation for hero heading
+- Created new navbar.tsx component:
+  - Transparent on dark hero → frosted glass white on scroll
+  - Animated active section indicator with IntersectionObserver
+  - Mobile hamburger menu with AnimatePresence transitions
+  - Entrance animation slides in from top on load
+  - Get Started CTA button
+- Overhauled hero-section.tsx to premium dark design:
+  - Dark background (#080F1A) with dot-grid pattern
+  - Radial glow orbs for depth
+  - Fluid clamp-based headline (clamp(2.6rem, 7vw, 5rem))
+  - Animated underline beneath "Scholarship"
+  - 2-column layout: copy left, 2×2 glass feature card grid right
+  - Stats row (50+ scholarships, 100% Free, AI, 24/7)
+  - Trust badge strip with strand labels (STEM, ABM, HUMSS, GAS, TVL)
+  - SVG wave at bottom transitioning to next section
+- Overhauled footer.tsx to 4-column professional layout:
+  - Column 1: Brand + tagline + PUP location + "100% Free" badge
+  - Column 2: Platform links with icons
+  - Column 3: Scholarship category list
+  - Column 4: Research project description card
+  - Gradient divider line and properly spaced bottom bar
+  - Dark theme matching hero (#080F1A)
+- Updated layout.tsx:
+  - Replaced Geist fonts with Plus Jakarta Sans + DM Sans
+  - Added Navbar component import and rendering
+- Updated page.tsx:
+  - Added section-divider divs between every section
+  - Updated AI Reviewer section header to use new design system
+  - Better sectionReveal animation variant
+  - Updated section background to warm off-white (#FAFAF8)
+- Updated section backgrounds in other components:
+  - eligibility-checker.tsx: from-white → from-[#FAFAF8]
+  - scholarship-browser.tsx: from-white → from-[#FAFAF8]
+  - ai-scholarship-matcher.tsx: from-white → from-[#FAFAF8]
+- Verified: lint passes clean, page compiles with HTTP 200
 
 Stage Summary:
-- Root cause: Background processes from bash tool sessions get killed on session timeout
-- Fix: Use `setsid bash -c '...' &` to create a fully detached daemon process
-- Production server running stably at ~115MB RAM on port 3000
-- Updated .zscripts/dev.sh with daemonization for future restarts
-- Page serves correctly with all sections and 26 scholarships
-
----
-Task ID: 2
-Agent: Main Agent
-Task: Verify Langchain integration and rebuild production
-
-Work Log:
-- Reviewed all Langchain module files (models.ts, schemas.ts, prompts.ts, tools.ts, index.ts)
-- Confirmed Langchain integration was already completed in previous session
-- All 4 API routes (chat, matcher, reviewer, scholarships) already use Langchain
-- Model factory supports: Google Gemini 2.5 Flash, Gemini 2.0 Flash, Groq Llama 3.3 70B, z-ai fallback
-- Structured output with Zod schemas for matcher and reviewer
-- No API keys configured - system falls back to z-ai-web-dev-sdk (always available)
-- Rebuilt production bundle successfully
-- Restarted server with daemonization approach
-- Verified all APIs working: 26 scholarships, page rendering correctly
-- Lint passes clean
-
-Stage Summary:
-- Langchain integration was already complete from previous session
-- Production server rebuilt and running stably at ~117MB RAM
-- System currently using z-ai fallback (no Google/Groq API keys configured)
-- To use better free models: add GOOGLE_API_KEY or GROQ_API_KEY to .env
+- Complete professional-grade redesign implemented
+- All 9 files modified/created
+- No compile errors, lint clean
+- Key visual changes: dark hero, frosted navbar, glass cards, animated underline, 4-col footer, section dividers, custom fonts, warm backgrounds

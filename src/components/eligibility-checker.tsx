@@ -551,7 +551,7 @@ export function EligibilityChecker() {
   }
 
   return (
-    <section id="eligibility-checker" className="py-16 sm:py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-white via-emerald-50/30 to-white">
+    <section id="eligibility-checker" className="py-16 sm:py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-[#FAFAF8] via-emerald-50/30 to-[#FAFAF8]">
       <div className="max-w-3xl mx-auto">
         {/* Section Header */}
         <motion.div

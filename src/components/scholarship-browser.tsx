@@ -740,7 +740,7 @@ export function ScholarshipBrowser({ onStartReviewer }: ScholarshipBrowserProps)
   const hasActiveFilters = search || typeFilter || coverageFilter || strandFilter || statusFilter
 
   return (
-    <section id="scholarships" className="w-full bg-gradient-to-b from-white to-emerald-50/30">
+    <section id="scholarships" className="w-full bg-gradient-to-b from-[#FAFAF8] to-emerald-50/30">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {/* Section Header */}
         <motion.div

@@ -338,7 +338,7 @@ export function AIScholarshipMatcher() {
   // ─── Render ─────────────────────────────────────────────────────────────
 
   return (
-    <section id="ai-matcher" className="py-16 sm:py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-white via-slate-50 to-white">
+    <section id="ai-matcher" className="py-16 sm:py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-[#FAFAF8] via-slate-50 to-[#FAFAF8]">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <motion.div

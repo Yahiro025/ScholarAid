@@ -319,7 +319,7 @@ export function AIChatbot() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
-            className="fixed bottom-24 right-4 sm:right-6 z-50 w-[calc(100vw-2rem)] sm:w-[440px] max-h-[75vh] flex flex-col rounded-2xl border border-slate-700/50 bg-slate-900 shadow-2xl shadow-black/40 overflow-hidden"
+            className="fixed inset-x-2 bottom-[5.5rem] sm:inset-x-auto sm:right-6 sm:bottom-24 z-50 sm:w-[440px] h-[calc(100dvh-7rem)] sm:h-auto sm:max-h-[75vh] flex flex-col rounded-2xl border border-slate-700/50 bg-slate-900 shadow-2xl shadow-black/40 overflow-hidden"
           >
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 shrink-0">
@@ -371,7 +371,7 @@ export function AIChatbot() {
             {/* Messages */}
             <div className="flex-1 relative overflow-hidden">
               <ScrollArea
-                className="h-[48vh] sm:h-[380px]"
+                className="flex-1 h-0 sm:h-[380px] sm:flex-none"
               >
                 <div className="p-4 space-y-4">
                   {messages.map((msg) => (
@@ -582,7 +582,7 @@ export function AIChatbot() {
         onClick={() => setIsOpen(!isOpen)}
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.95 }}
-        className={`fixed bottom-6 right-4 sm:right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full shadow-xl transition-all duration-300 ${
+        className={`fixed z-50 flex h-14 w-14 items-center justify-center rounded-full shadow-xl transition-all duration-300 bottom-[calc(1.5rem+env(safe-area-inset-bottom,0px))] right-4 sm:right-6 sm:bottom-6 ${
           isOpen
             ? 'bg-slate-700 hover:bg-slate-600 shadow-slate-700/40'
             : 'bg-gradient-to-br from-emerald-500 to-teal-500 shadow-emerald-500/30 hover:shadow-emerald-500/50'

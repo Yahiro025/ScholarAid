@@ -221,6 +221,27 @@ async function getFilteredScholarshipsContext(
   return { context, eligibleCount: filtered.length, totalCount, ineligible };
 }
 
+// ─── Cached ZAI Instance ────────────────────────────────────────────────────
+
+let cachedZAI: InstanceType<typeof ZAI> | null = null;
+let zaiInitPromise: Promise<InstanceType<typeof ZAI>> | null = null;
+
+async function getZAI(): Promise<InstanceType<typeof ZAI>> {
+  if (cachedZAI) return cachedZAI;
+  if (zaiInitPromise) return zaiInitPromise;
+
+  zaiInitPromise = ZAI.create().then((instance) => {
+    cachedZAI = instance;
+    zaiInitPromise = null;
+    return instance;
+  }).catch((error) => {
+    zaiInitPromise = null;
+    throw error;
+  });
+
+  return zaiInitPromise;
+}
+
 // ─── Web Search & Page Reading (using z-ai-web-dev-sdk) ─────────────────────
 
 async function performWebSearch(
@@ -233,7 +254,7 @@ async function performWebSearch(
   }
 
   try {
-    const zai = await ZAI.create();
+    const zai = await getZAI();
     const searchResults = await zai.functions.invoke("web_search", {
       query,
       num: 5,
@@ -272,7 +293,7 @@ async function readWebPage(
   url: string
 ): Promise<{ context: string; source: SourceReference | null }> {
   try {
-    const zai = await ZAI.create();
+    const zai = await getZAI();
     const result = await zai.functions.invoke("page_reader", { url });
 
     if (!result?.data?.html) {
@@ -298,7 +319,7 @@ async function readWebPage(
   }
 }
 
-// ─── Query Classification (using LangChain) ─────────────────────────────────
+// ─── Query Classification (using z-ai directly for speed) ───────────────────
 
 async function classifyQuery(
   message: string,
@@ -310,8 +331,12 @@ async function classifyQuery(
   pageUrl: string;
 }> {
   try {
-    const model = getChatModel();
-    const classificationPrompt = `You are a query classifier for a PUP-focused scholarship chatbot. Analyze the user's message and determine if it requires a web search.
+    const zai = await getZAI();
+    const completion = await zai.chat.completions.create({
+      messages: [
+        {
+          role: "assistant",
+          content: `You are a query classifier for a PUP-focused scholarship chatbot. Analyze the user's message and determine if it requires a web search.
 
 AVAILABLE SCHOLARSHIP NAMES in our database:
 ${scholarshipNames.join(", ")}
@@ -325,17 +350,17 @@ Respond in this EXACT format only:
 needs_search: true|false
 search_query: [if true, provide search query, otherwise "none"]
 needs_page_read: true|false
-page_url: [if needs_page_read, provide URL, otherwise "none"]`;
+page_url: [if needs_page_read, provide URL, otherwise "none"]`,
+        },
+        {
+          role: "user",
+          content: message,
+        },
+      ],
+      thinking: { type: "disabled" },
+    });
 
-    const response = await model.invoke([
-      new SystemMessage(classificationPrompt),
-      new HumanMessage(message),
-    ]);
-
-    const text =
-      typeof response.content === "string"
-        ? response.content
-        : JSON.stringify(response.content);
+    const text = completion.choices?.[0]?.message?.content || "";
 
     const needsWebSearch = /needs_search:\s*true/i.test(text);
     const needsPageRead = /needs_page_read:\s*true/i.test(text);
@@ -461,62 +486,89 @@ export async function POST(request: NextRequest) {
     let eligibilityNote = "";
     const allSources: SourceReference[] = [];
 
-    if (userGPA !== null) {
-      const filtered = await getFilteredScholarshipsContext(userGPA, userStrand);
-      scholarshipsContext = filtered.context;
+    try {
+      if (userGPA !== null) {
+        const filtered = await getFilteredScholarshipsContext(userGPA, userStrand);
+        scholarshipsContext = filtered.context;
 
-      eligibilityNote = [
-        `═══════════════════════════════════════════════════════════════`,
-        `PRE-FILTERED SCHOLARSHIP DATABASE (based on student's GPA: ${userGPA}%)`,
-        `═══════════════════════════════════════════════════════════════`,
-        ``,
-        `The student mentioned they have a GPA of ${userGPA}%.`,
-        userStrand ? `The student mentioned they are from the ${userStrand} strand.` : "",
-        `The scholarships listed below have been PRE-FILTERED to only include ones where the minimum GPA requirement is ≤ ${userGPA}%.`,
-        `This means the student IS GPA-eligible for ALL ${filtered.eligibleCount} scholarships listed below.`,
-        `There are ${filtered.ineligible.length} scholarships NOT shown because the student's GPA does not meet their minimum requirement:`,
-        ...filtered.ineligible.map((s) => `  - ${s.name} (requires ${s.minGPA}% GPA)`),
-        ``,
-        `IMPORTANT: Do NOT recommend any of the ineligible scholarships listed above as options the student can currently apply for.`,
-        `═══════════════════════════════════════════════════════════════`,
-      ].join("\n");
+        eligibilityNote = [
+          `═══════════════════════════════════════════════════════════════`,
+          `PRE-FILTERED SCHOLARSHIP DATABASE (based on student's GPA: ${userGPA}%)`,
+          `═══════════════════════════════════════════════════════════════`,
+          ``,
+          `The student mentioned they have a GPA of ${userGPA}%.`,
+          userStrand ? `The student mentioned they are from the ${userStrand} strand.` : "",
+          `The scholarships listed below have been PRE-FILTERED to only include ones where the minimum GPA requirement is ≤ ${userGPA}%.`,
+          `This means the student IS GPA-eligible for ALL ${filtered.eligibleCount} scholarships listed below.`,
+          `There are ${filtered.ineligible.length} scholarships NOT shown because the student's GPA does not meet their minimum requirement:`,
+          ...filtered.ineligible.map((s) => `  - ${s.name} (requires ${s.minGPA}% GPA)`),
+          ``,
+          `IMPORTANT: Do NOT recommend any of the ineligible scholarships listed above as options the student can currently apply for.`,
+          `═══════════════════════════════════════════════════════════════`,
+        ].join("\n");
 
-      allSources.push({
-        type: "database",
-        name: `ScholarAId Database (${filtered.eligibleCount} eligible for ${userGPA}% GPA)`,
-      });
-    } else {
-      scholarshipsContext = await getAllScholarshipsContext();
+        allSources.push({
+          type: "database",
+          name: `ScholarAId Database (${filtered.eligibleCount} eligible for ${userGPA}% GPA)`,
+        });
+      } else {
+        scholarshipsContext = await getAllScholarshipsContext();
+      }
+    } catch (dbError) {
+      console.error("[Chat API] Database error:", dbError);
+      scholarshipsContext = "Database temporarily unavailable.";
     }
 
     // Step 2: Classify query for web search
-    const scholarshipNames = (
-      await db.scholarship.findMany({
-        where: { isActive: true },
-        select: { name: true },
-      })
-    ).map((s) => s.name);
+    let classification = {
+      needsWebSearch: false,
+      searchQuery: message,
+      needsPageRead: false,
+      pageUrl: "",
+    };
 
-    const classification = await classifyQuery(message, scholarshipNames);
+    try {
+      const scholarshipNames = (
+        await db.scholarship.findMany({
+          where: { isActive: true },
+          select: { name: true },
+        })
+      ).map((s) => s.name);
+
+      classification = await classifyQuery(message, scholarshipNames);
+    } catch (classifyError) {
+      console.error("[Chat API] Classification error:", classifyError);
+      // Continue without web search
+    }
 
     // Step 3: Perform web search if needed
     let webSearchContext = "";
     if (classification.needsWebSearch) {
-      const searchResult = await performWebSearch(classification.searchQuery);
-      webSearchContext = searchResult.context
-        ? `\n\nWEB SEARCH RESULTS (use these carefully — they may not be fully verified):\n${searchResult.context}`
-        : "";
-      allSources.push(...searchResult.sources);
+      try {
+        const searchResult = await performWebSearch(classification.searchQuery);
+        webSearchContext = searchResult.context
+          ? `\n\nWEB SEARCH RESULTS (use these carefully — they may not be fully verified):\n${searchResult.context}`
+          : "";
+        allSources.push(...searchResult.sources);
+      } catch (searchError) {
+        console.error("[Chat API] Web search error:", searchError);
+        // Continue without web search context
+      }
     }
 
     // Step 4: Read web page if needed
     if (classification.needsPageRead && classification.pageUrl) {
-      const pageResult = await readWebPage(classification.pageUrl);
-      if (pageResult.context) {
-        webSearchContext += `\n\nWEB PAGE CONTENT from ${classification.pageUrl}:\n${pageResult.context}`;
-        if (pageResult.source) {
-          allSources.push(pageResult.source);
+      try {
+        const pageResult = await readWebPage(classification.pageUrl);
+        if (pageResult.context) {
+          webSearchContext += `\n\nWEB PAGE CONTENT from ${classification.pageUrl}:\n${pageResult.context}`;
+          if (pageResult.source) {
+            allSources.push(pageResult.source);
+          }
         }
+      } catch (pageError) {
+        console.error("[Chat API] Page read error:", pageError);
+        // Continue without page content
       }
     }
 
@@ -540,8 +592,30 @@ export async function POST(request: NextRequest) {
       new HumanMessage(message),
     ];
 
-    // Step 7: Generate response using LangChain
-    const response = await model.invoke(messages);
+    // Step 7: Generate response using LangChain (with retry)
+    let response;
+    let lastError: Error | null = null;
+
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        response = await model.invoke(messages);
+        break;
+      } catch (invokeError) {
+        lastError = invokeError instanceof Error ? invokeError : new Error(String(invokeError));
+        console.warn(`[Chat API] LLM invoke attempt ${attempt + 1} failed:`, lastError.message);
+        if (attempt < 2) {
+          await new Promise((resolve) => setTimeout(resolve, 1000 * (attempt + 1)));
+        }
+      }
+    }
+
+    if (!response) {
+      console.error("[Chat API] All LLM invoke attempts failed:", lastError);
+      return NextResponse.json(
+        { error: "AI is currently unavailable. Please try again in a moment." },
+        { status: 503 }
+      );
+    }
 
     let responseContent = "";
     if (typeof response.content === "string") {
@@ -559,7 +633,7 @@ export async function POST(request: NextRequest) {
 
     if (!responseContent) {
       return NextResponse.json(
-        { error: "AI failed to generate a response" },
+        { error: "AI failed to generate a response. Please try again." },
         { status: 500 }
       );
     }
@@ -581,9 +655,9 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("[Chat API] Error:", error);
+    console.error("[Chat API] Unhandled error:", error);
     return NextResponse.json(
-      { error: "Failed to generate response. Please try again." },
+      { error: "Something went wrong. Please try again." },
       { status: 500 }
     );
   }

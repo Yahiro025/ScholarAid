@@ -62,6 +62,28 @@ export const MODEL_CONFIGS: Record<ModelProvider, ModelConfig> = {
   },
 };
 
+// ─── Cached ZAI Instance ────────────────────────────────────────────────────
+
+let cachedZAI: InstanceType<typeof ZAI> | null = null;
+let zaiInitPromise: Promise<InstanceType<typeof ZAI>> | null = null;
+
+async function getZAIInstance(): Promise<InstanceType<typeof ZAI>> {
+  if (cachedZAI) return cachedZAI;
+
+  if (zaiInitPromise) return zaiInitPromise;
+
+  zaiInitPromise = ZAI.create().then((instance) => {
+    cachedZAI = instance;
+    zaiInitPromise = null;
+    return instance;
+  }).catch((error) => {
+    zaiInitPromise = null;
+    throw error;
+  });
+
+  return zaiInitPromise;
+}
+
 // ─── Custom z-ai-web-dev-sdk ChatModel Wrapper ───────────────────────────────
 
 /**
@@ -74,11 +96,13 @@ export class ZAIChatModel extends BaseChatModel {
 
   temperature: number;
   thinking: boolean;
+  maxRetries: number;
 
-  constructor(fields?: { temperature?: number; thinking?: boolean }) {
+  constructor(fields?: { temperature?: number; thinking?: boolean; maxRetries?: number }) {
     super(fields ?? {});
     this.temperature = fields?.temperature ?? 0.7;
     this.thinking = fields?.thinking ?? false;
+    this.maxRetries = fields?.maxRetries ?? 2;
   }
 
   _llmType(): string {
@@ -90,8 +114,6 @@ export class ZAIChatModel extends BaseChatModel {
   ): Promise<{
     generations: { text: string; message: AIMessage }[];
   }> {
-    const zai = await ZAI.create();
-
     // Convert LangChain messages to z-ai format
     const zaiMessages = messages.map((msg) => {
       if (msg instanceof SystemMessage) {
@@ -104,21 +126,47 @@ export class ZAIChatModel extends BaseChatModel {
       return { role: "user" as const, content: msg.content as string };
     });
 
-    const completion = await zai.chat.completions.create({
-      messages: zaiMessages,
-      thinking: { type: this.thinking ? "enabled" : "disabled" },
-    });
+    let lastError: Error | null = null;
 
-    const content = completion.choices?.[0]?.message?.content ?? "";
+    for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
+      try {
+        const zai = await getZAIInstance();
+        const completion = await zai.chat.completions.create({
+          messages: zaiMessages,
+          thinking: { type: this.thinking ? "enabled" : "disabled" },
+        });
 
-    return {
-      generations: [
-        {
-          text: content,
-          message: new AIMessage(content),
-        },
-      ],
-    };
+        const content = completion.choices?.[0]?.message?.content ?? "";
+
+        if (!content || content.trim().length === 0) {
+          throw new Error("Empty response from z-ai");
+        }
+
+        return {
+          generations: [
+            {
+              text: content,
+              message: new AIMessage(content),
+            },
+          ],
+        };
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        console.warn(
+          `[ZAIChatModel] Attempt ${attempt + 1} failed:`,
+          lastError.message
+        );
+
+        if (attempt < this.maxRetries) {
+          // Wait before retry (exponential backoff)
+          await new Promise((resolve) =>
+            setTimeout(resolve, 1000 * (attempt + 1))
+          );
+        }
+      }
+    }
+
+    throw lastError || new Error("Failed to get response from z-ai after retries");
   }
 }
 
@@ -186,7 +234,8 @@ export function getChatModel(
     default: {
       model = new ZAIChatModel({
         temperature: modelConfig.temperature,
-        thinking: config?.provider === "zai" ? false : true,
+        thinking: false,
+        maxRetries: 2,
       });
       break;
     }

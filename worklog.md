@@ -1,58 +1,24 @@
-# ScholarAId Worklog
-
 ---
 Task ID: 1
 Agent: Main Agent
-Task: Professional-grade website redesign
+Task: Fix AI Reviewer and Chatbot errors + Add scholarship type filters
 
 Work Log:
-- Read and analyzed all existing project files (globals.css, layout.tsx, page.tsx, hero-section.tsx, footer.tsx, and all other components)
-- Updated globals.css with complete design system overhaul:
-  - Added Plus Jakarta Sans (headings) and DM Sans (body) Google Fonts
-  - Warmed background to oklch(0.985 0.004 95) — subtle warm off-white
-  - Updated --primary to richer emerald oklch(0.517 0.153 163)
-  - Added custom utility classes: .bg-dot-pattern, .bg-grid-dark, .glass-card, .section-divider
-  - Added custom emerald scrollbar styling
-  - Added heading letter-spacing (-0.025em) and font-family rules
-  - Added .animated-underline keyframe animation for hero heading
-- Created new navbar.tsx component:
-  - Transparent on dark hero → frosted glass white on scroll
-  - Animated active section indicator with IntersectionObserver
-  - Mobile hamburger menu with AnimatePresence transitions
-  - Entrance animation slides in from top on load
-  - Get Started CTA button
-- Overhauled hero-section.tsx to premium dark design:
-  - Dark background (#080F1A) with dot-grid pattern
-  - Radial glow orbs for depth
-  - Fluid clamp-based headline (clamp(2.6rem, 7vw, 5rem))
-  - Animated underline beneath "Scholarship"
-  - 2-column layout: copy left, 2×2 glass feature card grid right
-  - Stats row (50+ scholarships, 100% Free, AI, 24/7)
-  - Trust badge strip with strand labels (STEM, ABM, HUMSS, GAS, TVL)
-  - SVG wave at bottom transitioning to next section
-- Overhauled footer.tsx to 4-column professional layout:
-  - Column 1: Brand + tagline + PUP location + "100% Free" badge
-  - Column 2: Platform links with icons
-  - Column 3: Scholarship category list
-  - Column 4: Research project description card
-  - Gradient divider line and properly spaced bottom bar
-  - Dark theme matching hero (#080F1A)
-- Updated layout.tsx:
-  - Replaced Geist fonts with Plus Jakarta Sans + DM Sans
-  - Added Navbar component import and rendering
-- Updated page.tsx:
-  - Added section-divider divs between every section
-  - Updated AI Reviewer section header to use new design system
-  - Better sectionReveal animation variant
-  - Updated section background to warm off-white (#FAFAF8)
-- Updated section backgrounds in other components:
-  - eligibility-checker.tsx: from-white → from-[#FAFAF8]
-  - scholarship-browser.tsx: from-white → from-[#FAFAF8]
-  - ai-scholarship-matcher.tsx: from-white → from-[#FAFAF8]
-- Verified: lint passes clean, page compiles with HTTP 200
+- Investigated why AI chatbot and reviewer were failing
+- Found root causes:
+  1. **AI Reviewer**: The ZAIChatModel doesn't support `withStructuredOutput()`, and the z-ai model returns markdown-formatted questions instead of JSON. The manual JSON parser couldn't find valid JSON in the response.
+  2. **AI Chatbot**: No retry logic, no per-step error handling. If any step (DB query, classification, web search, LLM call) failed, the whole request would return a 500 error.
+  3. **ZAIChatModel**: Created new `ZAI.create()` instance on every call (expensive), no retry logic.
+- Rewrote `/api/reviewer/route.ts` to use z-ai-web-dev-sdk directly with a JSON-requesting prompt, plus robust markdown fallback parser
+- Rewrote `/api/chat/route.ts` to add per-step try/catch, retry logic for LLM calls (3 attempts), cached ZAI instance, and better error messages (503 vs 500)
+- Updated `ZAIChatModel` in `/lib/langchain/models.ts` to cache ZAI instance, add retry logic (2 retries with exponential backoff)
+- Updated `ai-chatbot.tsx` to show contextual error messages (retryable vs non-retryable)
+- Updated scholarship type filter labels: "All" → "All Types", "Government" → "Government Scholarships"
+- Added 3 financial-need (Need-Based) scholarships to seed data: PUP Iskolar ng Bayan Program, DSWD AICS, OVP Educational Assistance
+- Re-seeded database with new scholarships
 
 Stage Summary:
-- Complete professional-grade redesign implemented
-- All 9 files modified/created
-- No compile errors, lint clean
-- Key visual changes: dark hero, frosted navbar, glass cards, animated underline, 4-col footer, section dividers, custom fonts, warm backgrounds
+- AI Reviewer now works: returns properly structured JSON questions via direct z-ai SDK call with markdown fallback parser
+- AI Chatbot now works: retry logic, per-step error handling, cached ZAI instance
+- Scholarship type filters already existed; updated labels and added Need-Based scholarships to DB
+- All lint checks pass

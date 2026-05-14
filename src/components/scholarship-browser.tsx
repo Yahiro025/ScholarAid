@@ -66,8 +66,8 @@ interface ScholarshipBrowserProps {
 // ─── Constants ──────────────────────────────────────────────────────────────
 
 const TYPE_FILTERS = [
-  { value: '', label: 'All' },
-  { value: 'government', label: 'Government' },
+  { value: '', label: 'All Types' },
+  { value: 'government', label: 'Government Scholarships' },
   { value: 'university', label: 'University-Funded' },
   { value: 'private', label: 'Private & Corporate' },
   { value: 'merit', label: 'Merit-Based' },

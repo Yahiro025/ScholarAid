@@ -268,14 +268,17 @@ export function AIChatbot() {
       setMessages((prev) => [...prev, assistantMessage])
       setHasNewMessage(true)
       setTimeout(() => setHasNewMessage(false), 3000)
-    } catch {
+    } catch (err) {
       clearTimeout(searchTimeout)
       clearTimeout(readTimeout)
+      const errorMsg = err instanceof Error ? err.message : 'Unknown error'
+      const isRetryable = errorMsg.includes('unavailable') || errorMsg.includes('try again') || errorMsg.includes('timeout')
       const errorMessage: ChatMessage = {
         id: `error-${Date.now()}`,
         role: 'assistant',
-        content:
-          "I'm sorry, I encountered an error processing your request. Please try again. In the meantime, you can still browse scholarships and check your eligibility using the tools on this page!",
+        content: isRetryable
+          ? "I'm having trouble connecting right now. This is usually temporary — please try again in a moment! You can still browse scholarships and check your eligibility using the tools on this page."
+          : "I'm sorry, I encountered an error processing your request. Please try rephrasing your question, or browse our scholarships and use the eligibility checker while I recover!",
         timestamp: new Date().toISOString(),
       }
       setMessages((prev) => [...prev, errorMessage])

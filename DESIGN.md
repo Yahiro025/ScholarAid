@@ -74,14 +74,28 @@ The palette is anchored by "Bicolano Sea Emerald"—a hue that feels both high-t
 ## 3. Typography
 
 **Display Font:** Plus Jakarta Sans
-**Body Font:** DM Sans
+**Body Font:** Inter
+**Mono Font:** Geist Mono
 
-**Character: Resilient Readability.** The pairing balances the geometric confidence of Jakarta with the high-legibility of DM Sans, optimized for dense scholarship criteria.
+**Character: Technical Precision & Supportive Clarity.** The system transitions from a fluid hero display to a disciplined, fixed-scale product interface. Plus Jakarta Sans provides geometric authority, while Inter ensures maximum legibility for dense scholarship criteria and AI-generated content.
 
-### Hierarchy
-- **Display** (800, clamp, 1.05): Used for hero headlines to convey authority and hope.
-- **Headline** (700, 2.25rem, 1.2): Used for section titles.
-- **Body** (400, 1rem, 1.6): Optimized for 65–75ch to ensure reading stamina.
+### Type Scale (1.2 Minor Third)
+The system uses a modular scale to ensure mathematical harmony and clear hierarchy.
+
+| Role | Weight | Size (rem) | Size (px) | Application |
+| :--- | :--- | :--- | :--- | :--- |
+| **Display** | 800 | 2.488rem | ~40px | Hero Headlines |
+| **H2** | 700 | 2.074rem | ~33px | Section Titles |
+| **H3** | 700 | 1.728rem | ~28px | Card Titles / Tool Headings |
+| **H4** | 700 | 1.44rem | ~23px | Minor Subheadings |
+| **H5** | 600 | 1.2rem | ~19px | Labels / Prompts |
+| **Body** | 400 | 1rem | 16px | Primary Prose (Inter) |
+| **Small** | 400 | 0.833rem | ~13px | Captions / Metadata |
+
+**Named Rules:**
+- **The 65ch Rule.** All long-form text containers (scholarship descriptions, AI reviews) are capped at a maximum width of 65 characters to maintain reading stamina.
+- **Tightened Tracking.** Display and H1-H3 headings use `letter-spacing: -0.02em` to feel cohesive and professional.
+- **Standard Line-Height.** Body text is set to `1.6` to ensure accessibility and breathing room.
 
 ## 4. Elevation
 

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Plus_Jakarta_Sans, DM_Sans, Geist_Mono } from "next/font/google";
+import { Plus_Jakarta_Sans, Inter, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { Navbar } from "@/components/navbar";
@@ -10,8 +10,8 @@ const plusJakarta = Plus_Jakarta_Sans({
   display: "swap",
 });
 
-const dmSans = DM_Sans({
-  variable: "--font-dm-sans",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
   display: "swap",
 });
@@ -52,7 +52,7 @@ export default function RootLayout({
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
       </head>
       <body
-        className={`${plusJakarta.variable} ${dmSans.variable} ${geistMono.variable} antialiased bg-background text-foreground flex flex-col min-h-screen`}
+        className={`${plusJakarta.variable} ${inter.variable} ${geistMono.variable} antialiased bg-background text-foreground flex flex-col min-h-screen`}
       >
         <Navbar />
         <div className="flex-1 flex flex-col">

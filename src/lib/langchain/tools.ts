@@ -121,20 +121,85 @@ Description: ${s.description}`
   },
 });
 
-// ─── Dummy Tools (ZAI Disabled) ──────────────────────────────────────────────
+import ZAI from "z-ai-web-dev-sdk";
+
+// ─── ZAI Functions Wrapper ───────────────────────────────────────────────────
+
+/**
+ * Shared ZAI client for tools to avoid redundant creation
+ */
+let zaiClient: ZAI | null = null;
+
+async function getZAIClient(): Promise<ZAI> {
+  if (!zaiClient) {
+    zaiClient = await ZAI.create();
+  }
+  return zaiClient;
+}
+
+// ─── Scholarship Database Tool ───────────────────────────────────────────────
+// ... (scholarshipDatabaseTool remains same)
+
+// ─── Web Search Tool ─────────────────────────────────────────────────────────
 
 export const webSearchTool = new DynamicStructuredTool({
   name: "web_search",
-  description: "DISABLED. Do not use.",
+  description: "Search the web for current scholarship info, announcements, or details not in the local database. Returns snippets from the web.",
   schema: z.object({ query: z.string() }),
-  func: async () => "External web search is currently disabled. Please rely on the scholarship database.",
+  func: async ({ query }) => {
+    try {
+      console.log(`[LangChain Tool] Web searching: ${query}`);
+      const client = await getZAIClient();
+      const results = await client.functions.invoke("web_search", { query, num: 5 });
+      
+      if (!results || results.length === 0) {
+        return "No web search results found for this query.";
+      }
+      
+      return results
+        .map(
+          (r, i) => 
+            `Result ${i+1}: ${r.name}\nURL: ${r.url}\nSnippet: ${r.snippet}`
+        )
+        .join("\n\n");
+    } catch (error) {
+      console.error("[LangChain Tool] Web search failed:", error);
+      return `Error searching the web: ${error instanceof Error ? error.message : String(error)}`;
+    }
+  },
 });
+
+// ─── Page Reader Tool ────────────────────────────────────────────────────────
 
 export const pageReaderTool = new DynamicStructuredTool({
   name: "page_reader",
-  description: "DISABLED. Do not use.",
-  schema: z.object({ url: z.string() }),
-  func: async () => "Web page reading is currently disabled.",
+  description: "Read the content of a scholarship's official website or application page to get more detailed information, requirements, or updates. Use this ONLY when you have a specific URL.",
+  schema: z.object({ url: z.string().url() }),
+  func: async ({ url }) => {
+    try {
+      console.log(`[LangChain Tool] Reading page (ZAI): ${url}`);
+      const client = await getZAIClient();
+      const result = await client.functions.invoke("page_reader", { url });
+      
+      if (result.status !== 200 || !result.data) {
+        return `Failed to read page: Status ${result.status}`;
+      }
+      
+      // The ZAI SDK might return HTML or cleaned text. 
+      // Based on type defs, result.data.html contains the content.
+      let text = result.data.html
+        .replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gmi, "")
+        .replace(/<style\b[^>]*>([\s\S]*?)<\/style>/gmi, "")
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      
+      return text.substring(0, 10000); // ZAI might provide better cleanup, but we still limit
+    } catch (error) {
+      console.error("[LangChain Tool] Page reader failed:", error);
+      return `Error reading page: ${error instanceof Error ? error.message : String(error)}`;
+    }
+  },
 });
 
 // ─── Tool Collections ────────────────────────────────────────────────────────
@@ -142,6 +207,8 @@ export const pageReaderTool = new DynamicStructuredTool({
 /** All tools available for the chat assistant */
 export const chatTools = [
   scholarshipDatabaseTool,
+  webSearchTool,
+  pageReaderTool,
 ];
 
 /** Tools for the matcher (database only, no web search needed) */

@@ -3,6 +3,8 @@ import { db } from "@/lib/db";
 import {
   getChatModel,
   getActiveModelInfo,
+  pageReaderTool,
+  webSearchTool,
 } from "@/lib/langchain";
 import {
   HumanMessage,
@@ -260,6 +262,28 @@ async function classifyQuery(
   }
 }
 
+// ─── Tool Execution ─────────────────────────────────────────────────────────
+
+async function executePageReader(url: string): Promise<string> {
+  try {
+    const result = await pageReaderTool.invoke({ url });
+    return `\n\n[OFFICIAL PAGE CONTENT FROM ${url}]\n${result}\n[END OFFICIAL CONTENT]`;
+  } catch (error) {
+    console.error("[Chat API] Page reader failed:", error);
+    return `\n\n[TOOL ERROR] Failed to read official page at ${url}.`;
+  }
+}
+
+async function executeWebSearch(query: string): Promise<string> {
+  try {
+    const result = await webSearchTool.invoke({ query });
+    return `\n\n[WEB SEARCH RESULTS FOR: ${query}]\n${result}\n[END WEB SEARCH]`;
+  } catch (error) {
+    console.error("[Chat API] Web search failed:", error);
+    return `\n\n[TOOL ERROR] Failed to search the web for ${query}.`;
+  }
+}
+
 // ─── System Prompt ──────────────────────────────────────────────────────────
 
 const SYSTEM_PROMPT = `You are ScholarAId Assistant, a friendly and knowledgeable AI chatbot for the ScholarAId website — an AI-powered scholarship platform built specifically for PUP (Polytechnic University of the Philippines) students and incoming freshmen. You help PUP students find scholarships, understand eligibility requirements, prepare for the PUPCET and other exams, and navigate the website.
@@ -374,6 +398,45 @@ export async function POST(request: NextRequest) {
       classificationPromise,
     ]);
 
+    // Step 2: Tool Execution (Improved RAG)
+    let toolContext = "";
+    
+    // Check if we need web search
+    const webSearchPromise = classification.needsWebSearch && classification.searchQuery !== "none"
+      ? executeWebSearch(classification.searchQuery)
+      : Promise.resolve("");
+
+    // Check if we need to read a page
+    let pageReaderPromise = Promise.resolve("");
+    if (classification.needsPageRead) {
+      let targetUrl = classification.pageUrl;
+      
+      // If classifier didn't find a URL but gave a scholarship name, look it up in DB
+      if (targetUrl === "none" && classification.searchQuery !== "none") {
+        const scholarship = await db.scholarship.findFirst({
+          where: { 
+            name: { contains: classification.searchQuery, mode: 'insensitive' },
+            isActive: true 
+          },
+          select: { websiteUrl: true }
+        });
+        if (scholarship?.websiteUrl) {
+          targetUrl = scholarship.websiteUrl;
+        }
+      }
+      
+      if (targetUrl !== "none" && targetUrl.startsWith("http")) {
+        pageReaderPromise = executePageReader(targetUrl);
+      }
+    }
+
+    const [webResult, pageResult] = await Promise.all([
+      webSearchPromise,
+      pageReaderPromise
+    ]);
+
+    toolContext = webResult + pageResult;
+
     let eligibilityNote = "";
     if (userGPA !== null && "eligibleCount" in scholarshipData) {
       const data = scholarshipData as any;
@@ -395,14 +458,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Step 3: Build the system prompt
-    const systemPrompt = SYSTEM_PROMPT.replace(
+    const finalSystemPrompt = SYSTEM_PROMPT.replace(
       "{ELIGIBILITY_NOTE}",
       eligibilityNote
-    ).replace("{SCHOLARSHIPS_CONTEXT}", scholarshipData.context);
+    ).replace("{SCHOLARSHIPS_CONTEXT}", scholarshipData.context) + toolContext;
 
     // Step 4: Build messages
     const messages = [
-      new SystemMessage(systemPrompt),
+      new SystemMessage(finalSystemPrompt),
       ...history.slice(-10).map((m) =>
         m.role === "user"
           ? new HumanMessage(m.content)

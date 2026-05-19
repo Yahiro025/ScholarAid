@@ -109,11 +109,12 @@ AVAILABLE SCHOLARSHIP NAMES in our database:
 {scholarship_names}
 
 CLASSIFICATION RULES:
-1. If the question is about one of the listed scholarships AND asks for info that would be in our database (requirements, GPA, income, coverage, deadline, exam, strands, courses) → needs_web_search=false
-2. If the question asks about scholarships NOT in our list, or asks about current/upcoming application dates, or asks about external information → needs_web_search=true
-3. If the question asks about website features, how to use the site, exam tips, or general advice → needs_web_search=false
+1. If the user asks for more details, official information, current application status, or anything deep about a specific scholarship → needs_page_read=true.
+2. If the user asks for a scholarship NOT in our list, or asks about current/upcoming application dates across the web, or asks about external information → needs_web_search=true.
+3. If the user mentions a specific URL or asks you to "check this link" → needs_page_read=true and extract the URL.
+4. If the user asks for general advice, website help, or basic info already in our database → tools not needed.
 
-Also classify the intent of the query.`
+Also identify if they are asking about a specific scholarship from our list. If so, return its name in search_query even if needs_web_search is false.`
   ),
   HumanMessagePromptTemplate.fromTemplate("{message}"),
 ]);

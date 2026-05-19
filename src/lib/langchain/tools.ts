@@ -2,116 +2,12 @@
  * LangChain Tools for ScholarAId
  *
  * Custom tools that the AI can use to enhance its responses:
- * - Web Search: Search the web for scholarship information
- * - Page Reader: Read and extract content from web pages
  * - Scholarship Database: Query the local scholarship database
  */
 
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
-import ZAI from "z-ai-web-dev-sdk";
 import { db } from "@/lib/db";
-
-// ─── Caching ─────────────────────────────────────────────────────────────────
-
-const webSearchCache = new Map<
-  string,
-  { results: string; timestamp: number }
->();
-const WEB_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
-
-// ─── Web Search Tool ─────────────────────────────────────────────────────────
-
-export const webSearchTool = new DynamicStructuredTool({
-  name: "web_search",
-  description:
-    "Search the web for information about scholarships, application deadlines, requirements, or any topic not covered in the local database. Use this when the user asks about scholarships or programs not in our database, current/upcoming application dates, or external information.",
-  schema: z.object({
-    query: z
-      .string()
-      .describe(
-        "A specific search query optimized for Philippine scholarships (e.g., 'DOST scholarship 2025 application requirements')"
-      ),
-  }),
-  func: async ({ query }) => {
-    try {
-      // Check cache first
-      const cacheKey = query.toLowerCase().trim();
-      const cached = webSearchCache.get(cacheKey);
-      if (cached && Date.now() - cached.timestamp < WEB_CACHE_TTL) {
-        return cached.results;
-      }
-
-      const zai = await ZAI.create();
-      const searchResults = await zai.functions.invoke("web_search", {
-        query,
-        num: 5,
-      });
-
-      if (!Array.isArray(searchResults) || searchResults.length === 0) {
-        return "No search results found. Try a different query.";
-      }
-
-      const formattedResults = searchResults
-        .slice(0, 5)
-        .map(
-          (
-            r: { name: string; url: string; snippet: string; host_name: string },
-            i: number
-          ) =>
-            `[Source ${i + 1}] ${r.name}\nURL: ${r.url}\n${r.snippet}`
-        )
-        .join("\n\n");
-
-      // Cache the results
-      webSearchCache.set(cacheKey, {
-        results: formattedResults,
-        timestamp: Date.now(),
-      });
-
-      return formattedResults;
-    } catch (error) {
-      console.error("[LangChain Tool] Web search failed:", error);
-      return "Web search failed. Please try again or rely on local database information.";
-    }
-  },
-});
-
-// ─── Page Reader Tool ────────────────────────────────────────────────────────
-
-export const pageReaderTool = new DynamicStructuredTool({
-  name: "page_reader",
-  description:
-    "Read and extract content from a web page URL. Use this to get detailed information from a specific scholarship application page or official website.",
-  schema: z.object({
-    url: z
-      .string()
-      .describe("The URL of the web page to read and extract content from"),
-  }),
-  func: async ({ url }) => {
-    try {
-      const zai = await ZAI.create();
-      const result = await zai.functions.invoke("page_reader", { url });
-
-      if (!result?.data?.html) {
-        return "Could not read the page content. The page may be behind a login wall or have restricted access.";
-      }
-
-      // Extract text content, limiting to reasonable length
-      const plainText = result.data.html
-        .replace(/<[^>]*>/g, " ")
-        .replace(/\s+/g, " ")
-        .trim()
-        .slice(0, 4000);
-
-      const title = result.data.title || url;
-      return `Page Title: ${title}\n\nContent:\n${plainText}`;
-    } catch (error) {
-      console.error("[LangChain Tool] Page reading failed:", error);
-      return "Failed to read the web page. The URL may be invalid or the page may be inaccessible.";
-    }
-  },
-});
 
 // ─── Scholarship Database Tool ───────────────────────────────────────────────
 
@@ -159,8 +55,8 @@ export const scholarshipDatabaseTool = new DynamicStructuredTool({
       if (search) {
         andConditions.push({
           OR: [
-            { name: { contains: search } },
-            { provider: { contains: search } },
+            { name: { contains: search, mode: 'insensitive' } },
+            { provider: { contains: search, mode: 'insensitive' } },
           ],
         });
       }
@@ -197,7 +93,7 @@ export const scholarshipDatabaseTool = new DynamicStructuredTool({
       });
 
       if (scholarships.length === 0) {
-        return "No scholarships found matching the criteria. Try broadening your search.";
+        return "No scholarships found matching the criteria in our database.";
       }
 
       return scholarships
@@ -225,12 +121,26 @@ Description: ${s.description}`
   },
 });
 
+// ─── Dummy Tools (ZAI Disabled) ──────────────────────────────────────────────
+
+export const webSearchTool = new DynamicStructuredTool({
+  name: "web_search",
+  description: "DISABLED. Do not use.",
+  schema: z.object({ query: z.string() }),
+  func: async () => "External web search is currently disabled. Please rely on the scholarship database.",
+});
+
+export const pageReaderTool = new DynamicStructuredTool({
+  name: "page_reader",
+  description: "DISABLED. Do not use.",
+  schema: z.object({ url: z.string() }),
+  func: async () => "Web page reading is currently disabled.",
+});
+
 // ─── Tool Collections ────────────────────────────────────────────────────────
 
 /** All tools available for the chat assistant */
 export const chatTools = [
-  webSearchTool,
-  pageReaderTool,
   scholarshipDatabaseTool,
 ];
 

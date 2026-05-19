@@ -44,6 +44,20 @@ interface ChatMessage {
   sources?: SourceInfo[]
   usedWebSearch?: boolean
   model?: ModelInfo
+  isStreaming?: boolean
+}
+
+// ─── Streaming Cursor ───────────────────────────────────────────────────────
+
+function StreamingCursor() {
+  return (
+    <motion.span
+      initial={{ opacity: 0 }}
+      animate={{ opacity: [0, 1, 0] }}
+      transition={{ duration: 0.8, repeat: Infinity, ease: 'linear' }}
+      className="inline-block w-1.5 h-3.5 ml-1 bg-emerald-500/80 rounded-full align-middle"
+    />
+  )
 }
 
 // ─── Suggested Prompts ──────────────────────────────────────────────────────
@@ -107,31 +121,41 @@ function SourceBadge({ source }: { source: SourceInfo }) {
 
 // ─── Markdown-like renderer ────────────────────────────────────────────────
 
-function renderMessageContent(content: string) {
+function renderMessageContent(content: string, isStreaming?: boolean) {
+  if (!content && isStreaming) {
+    return <div className="py-1"><StreamingCursor /></div>
+  }
+
   const lines = content.split('\n')
   const elements: React.ReactNode[] = []
 
   lines.forEach((line, i) => {
     const trimmed = line.trim()
+    const isLastLine = i === lines.length - 1
 
     if (!trimmed) {
-      elements.push(<br key={i} />)
+      if (isLastLine && isStreaming) {
+        elements.push(<div key="cursor-line" className="py-0.5"><StreamingCursor /></div>)
+      } else {
+        elements.push(<div key={`br-${i}`} className="h-2" />)
+      }
       return
     }
 
-    // Bold text
-    const boldProcessed = trimmed.replace(
-      /\*\*(.*?)\*\*/g,
-      '<strong>$1</strong>'
-    )
+    // Bold text helper
+    const processBold = (text: string) => 
+      text.replace(/\*\*(.*?)\*\*/g, '<strong class="text-slate-100 font-semibold">$1</strong>')
 
     // Bullet points
     if (trimmed.startsWith('- ') || trimmed.startsWith('• ')) {
       const text = trimmed.replace(/^[-•]\s*/, '')
       elements.push(
-        <div key={i} className="flex items-start gap-2 ml-2">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0 mt-2" />
-          <span dangerouslySetInnerHTML={{ __html: boldProcessed.replace(/\*\*(.*?)\*\*/g, '<strong class="text-slate-200">$1</strong>') }} />
+        <div key={i} className="flex items-start gap-2 ml-1.5 py-0.5">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500/60 shrink-0 mt-1.5" />
+          <div className="flex-1">
+            <span dangerouslySetInnerHTML={{ __html: processBold(text) }} />
+            {isLastLine && isStreaming && <StreamingCursor />}
+          </div>
         </div>
       )
       return
@@ -139,20 +163,31 @@ function renderMessageContent(content: string) {
 
     // Numbered items
     if (/^\d+\.\s/.test(trimmed)) {
-      const text = trimmed.replace(/^\d+\.\s*/, '')
+      const match = trimmed.match(/^(\d+\.\s*)(.*)/)
+      const number = match?.[1] || ''
+      const text = match?.[2] || ''
       elements.push(
-        <div key={i} className="ml-2" dangerouslySetInnerHTML={{ __html: boldProcessed.replace(/\*\*(.*?)\*\*/g, '<strong class="text-slate-200">$1</strong>') }} />
+        <div key={i} className="flex items-start gap-1.5 ml-1.5 py-0.5">
+          <span className="text-emerald-500/80 font-medium tabular-nums shrink-0">{number}</span>
+          <div className="flex-1">
+            <span dangerouslySetInnerHTML={{ __html: processBold(text) }} />
+            {isLastLine && isStreaming && <StreamingCursor />}
+          </div>
+        </div>
       )
       return
     }
 
     // Regular line
     elements.push(
-      <span key={i} dangerouslySetInnerHTML={{ __html: boldProcessed.replace(/\*\*(.*?)\*\*/g, '<strong class="text-slate-200">$1</strong>') }} />
+      <div key={i} className="py-0.5">
+        <span dangerouslySetInnerHTML={{ __html: processBold(trimmed) }} />
+        {isLastLine && isStreaming && <StreamingCursor />}
+      </div>
     )
   })
 
-  return <div className="space-y-0.5">{elements}</div>
+  return <div className="space-y-px">{elements}</div>
 }
 
 // ─── Main Component ─────────────────────────────────────────────────────────
@@ -229,6 +264,8 @@ export function AIChatbot() {
       setLoadingStage('reading')
     }, 5000)
 
+    let assistantMessageId: string | undefined
+
     try {
       // Build history for context (last 16 messages)
       const history = messages.slice(-16).map((m) => ({
@@ -250,27 +287,74 @@ export function AIChatbot() {
         throw new Error(errorData.error || 'Failed to get response')
       }
 
-      const data = await response.json()
-
       clearTimeout(searchTimeout)
       clearTimeout(readTimeout)
 
+      // Create a placeholder for the assistant message
+      assistantMessageId = `assistant-${Date.now()}`
       const assistantMessage: ChatMessage = {
-        id: `assistant-${Date.now()}`,
+        id: assistantMessageId,
         role: 'assistant',
-        content: data.response,
-        timestamp: data.timestamp,
-        sources: data.sources || [],
-        usedWebSearch: data.usedWebSearch || false,
-        model: data.model || undefined,
+        content: '',
+        timestamp: new Date().toISOString(),
+        sources: [],
+        usedWebSearch: false,
+        isStreaming: true,
       }
 
       setMessages((prev) => [...prev, assistantMessage])
+      setIsLoading(false) // Hide main loading indicator as we start streaming
+
+      const reader = response.body?.getReader()
+      const decoder = new TextDecoder()
+      let fullContent = ''
+
+      if (reader) {
+        try {
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+
+            const chunk = decoder.decode(value, { stream: true })
+            fullContent += chunk
+
+            // Update message incrementally
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === assistantMessageId
+                  ? { ...msg, content: fullContent }
+                  : msg
+              )
+            )
+          }
+        } finally {
+          reader.releaseLock()
+        }
+      }
+
+      // Mark streaming as finished
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === assistantMessageId ? { ...msg, isStreaming: false } : msg
+        )
+      )
+
       setHasNewMessage(true)
       setTimeout(() => setHasNewMessage(false), 3000)
     } catch (err) {
       clearTimeout(searchTimeout)
       clearTimeout(readTimeout)
+      setIsLoading(false)
+      
+      // If we were streaming, mark it as finished/failed
+      if (typeof assistantMessageId !== 'undefined') {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === assistantMessageId ? { ...msg, isStreaming: false } : msg
+          )
+        )
+      }
+
       const errorMsg = err instanceof Error ? err.message : 'Unknown error'
       const isRetryable = errorMsg.includes('unavailable') || errorMsg.includes('try again') || errorMsg.includes('timeout')
       const errorMessage: ChatMessage = {
@@ -282,8 +366,6 @@ export function AIChatbot() {
         timestamp: new Date().toISOString(),
       }
       setMessages((prev) => [...prev, errorMessage])
-    } finally {
-      setIsLoading(false)
     }
   }
 
@@ -412,7 +494,7 @@ export function AIChatbot() {
                           }`}
                         >
                           {msg.role === 'assistant'
-                            ? renderMessageContent(msg.content)
+                            ? renderMessageContent(msg.content, msg.isStreaming)
                             : msg.content}
                         </div>
 

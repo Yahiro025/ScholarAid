@@ -163,7 +163,7 @@ async function generateAIAnalysis(
   const model = getStructuredModel();
 
   const eligibleContext = eligible
-    .slice(0, 8)
+    .slice(0, 5) // Reduced from 8 to 5 for speed
     .map(
       (s) =>
         `--- ${s.name} ---
@@ -182,7 +182,7 @@ Website: ${s.websiteUrl || "N/A"}`
     .join("\n\n");
 
   const nearMissContext = nearMiss
-    .slice(0, 4)
+    .slice(0, 2) // Reduced from 4 to 2 for speed
     .map(
       (s) =>
         `--- ${s.name} ---

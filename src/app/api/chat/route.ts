@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import ZAI from "z-ai-web-dev-sdk";
 import {
   getChatModel,
   getActiveModelInfo,
-  type ModelProvider,
 } from "@/lib/langchain";
 import {
   HumanMessage,
   AIMessage,
   SystemMessage,
 } from "@langchain/core/messages";
+import { classificationPrompt } from "@/lib/langchain/prompts";
+import { QueryClassificationSchema } from "@/lib/langchain/schemas";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -169,10 +169,23 @@ function buildScholarshipsContext(
 
 let allScholarshipsContext: string | null = null;
 let allScholarshipsCacheTime = 0;
+let cachedNames: string[] | null = null;
+let namesCacheTime = 0;
 const CACHE_TTL = 5 * 60 * 1000;
 
-const webSearchCache = new Map<string, { results: string; sources: SourceReference[]; timestamp: number }>();
-const WEB_CACHE_TTL = 10 * 60 * 1000;
+async function getScholarshipNames(): Promise<string[]> {
+  const now = Date.now();
+  if (cachedNames && now - namesCacheTime < CACHE_TTL) {
+    return cachedNames;
+  }
+  const scholarships = await db.scholarship.findMany({
+    where: { isActive: true },
+    select: { name: true },
+  });
+  cachedNames = scholarships.map((s) => s.name);
+  namesCacheTime = now;
+  return cachedNames;
+}
 
 async function getAllScholarshipsContext(): Promise<string> {
   const now = Date.now();
@@ -202,7 +215,6 @@ async function getFilteredScholarshipsContext(
     orderBy: { name: "asc" },
   });
 
-  const totalCount = allScholarships.length;
   const eligible = allScholarships.filter((s) => s.minGPA <= userGPA);
   const ineligible = allScholarships
     .filter((s) => s.minGPA > userGPA)
@@ -218,167 +230,32 @@ async function getFilteredScholarshipsContext(
   }
 
   const context = buildScholarshipsContext(filtered);
-  return { context, eligibleCount: filtered.length, totalCount, ineligible };
+  return { context, eligibleCount: filtered.length, totalCount: allScholarships.length, ineligible };
 }
 
-// ─── Cached ZAI Instance ────────────────────────────────────────────────────
-
-let cachedZAI: InstanceType<typeof ZAI> | null = null;
-let zaiInitPromise: Promise<InstanceType<typeof ZAI>> | null = null;
-
-async function getZAI(): Promise<InstanceType<typeof ZAI>> {
-  if (cachedZAI) return cachedZAI;
-  if (zaiInitPromise) return zaiInitPromise;
-
-  zaiInitPromise = ZAI.create().then((instance) => {
-    cachedZAI = instance;
-    zaiInitPromise = null;
-    return instance;
-  }).catch((error) => {
-    zaiInitPromise = null;
-    throw error;
-  });
-
-  return zaiInitPromise;
-}
-
-// ─── Web Search & Page Reading (using z-ai-web-dev-sdk) ─────────────────────
-
-async function performWebSearch(
-  query: string
-): Promise<{ context: string; sources: SourceReference[] }> {
-  const cacheKey = query.toLowerCase().trim();
-  const cached = webSearchCache.get(cacheKey);
-  if (cached && Date.now() - cached.timestamp < WEB_CACHE_TTL) {
-    return { context: cached.results, sources: cached.sources };
-  }
-
-  try {
-    const zai = await getZAI();
-    const searchResults = await zai.functions.invoke("web_search", {
-      query,
-      num: 5,
-    });
-
-    if (!Array.isArray(searchResults) || searchResults.length === 0) {
-      return { context: "", sources: [] };
-    }
-
-    const sources: SourceReference[] = searchResults
-      .slice(0, 5)
-      .map((r: { name: string; url: string; snippet: string }) => ({
-        type: "web_search" as const,
-        name: r.name,
-        url: r.url,
-        snippet: r.snippet,
-      }));
-
-    const context = searchResults
-      .slice(0, 5)
-      .map(
-        (r: { name: string; url: string; snippet: string }, i: number) =>
-          `[Source ${i + 1}] ${r.name}\nURL: ${r.url}\n${r.snippet}`
-      )
-      .join("\n\n");
-
-    webSearchCache.set(cacheKey, { results: context, sources, timestamp: Date.now() });
-    return { context, sources };
-  } catch (error) {
-    console.error("[Chat API] Web search failed:", error);
-    return { context: "", sources: [] };
-  }
-}
-
-async function readWebPage(
-  url: string
-): Promise<{ context: string; source: SourceReference | null }> {
-  try {
-    const zai = await getZAI();
-    const result = await zai.functions.invoke("page_reader", { url });
-
-    if (!result?.data?.html) {
-      return { context: "", source: null };
-    }
-
-    const plainText = result.data.html
-      .replace(/<[^>]*>/g, " ")
-      .replace(/\s+/g, " ")
-      .trim()
-      .slice(0, 3000);
-
-    const source: SourceReference = {
-      type: "web_page",
-      name: result.data.title || url,
-      url,
-    };
-
-    return { context: plainText, source };
-  } catch (error) {
-    console.error("[Chat API] Page reading failed:", error);
-    return { context: "", source: null };
-  }
-}
-
-// ─── Query Classification (using z-ai directly for speed) ───────────────────
+// ─── Query Classification (using LangChain for accuracy) ──────────────────
 
 async function classifyQuery(
   message: string,
   scholarshipNames: string[]
-): Promise<{
-  needsWebSearch: boolean;
-  searchQuery: string;
-  needsPageRead: boolean;
-  pageUrl: string;
-}> {
+) {
   try {
-    const zai = await getZAI();
-    const completion = await zai.chat.completions.create({
-      messages: [
-        {
-          role: "assistant",
-          content: `You are a query classifier for a PUP-focused scholarship chatbot. Analyze the user's message and determine if it requires a web search.
-
-AVAILABLE SCHOLARSHIP NAMES in our database:
-${scholarshipNames.join(", ")}
-
-CLASSIFICATION RULES:
-1. If the question is about one of the listed scholarships AND asks for info in our database → needs_search=false
-2. If the question asks about scholarships NOT in our list, current/upcoming dates, external info → needs_search=true
-3. If the question asks about website features, exam tips, general advice → needs_search=false
-
-Respond in this EXACT format only:
-needs_search: true|false
-search_query: [if true, provide search query, otherwise "none"]
-needs_page_read: true|false
-page_url: [if needs_page_read, provide URL, otherwise "none"]`,
-        },
-        {
-          role: "user",
-          content: message,
-        },
-      ],
-      thinking: { type: "disabled" },
-    });
-
-    const text = completion.choices?.[0]?.message?.content || "";
-
-    const needsWebSearch = /needs_search:\s*true/i.test(text);
-    const needsPageRead = /needs_page_read:\s*true/i.test(text);
-    const searchQueryMatch = text.match(/search_query:\s*(.+)/i);
-    const pageUrlMatch = text.match(/page_url:\s*(.+)/i);
-
-    return {
-      needsWebSearch,
-      searchQuery: searchQueryMatch?.[1]?.trim() || message,
-      needsPageRead,
-      pageUrl: pageUrlMatch?.[1]?.trim() || "",
-    };
-  } catch {
+    const model = getChatModel().withStructuredOutput(QueryClassificationSchema);
+    const classification = await model.invoke(
+      await classificationPrompt.format({
+        scholarship_names: scholarshipNames.join(", "),
+        message: message
+      })
+    );
+    return classification;
+  } catch (error) {
+    console.error("[Chat API] Classification failed:", error);
     return {
       needsWebSearch: false,
-      searchQuery: message,
+      searchQuery: "none",
       needsPageRead: false,
-      pageUrl: "",
+      pageUrl: "none",
+      intent: "general_advice" as const,
     };
   }
 }
@@ -444,9 +321,7 @@ CRITICAL ANTI-HALLUCINATION RULES (MUST FOLLOW):
 
 3. **When you are NOT sure about something, explicitly say so.**
 
-4. **If asked about a scholarship NOT in our database, be honest:**
-   - "That scholarship isn't in our current database."
-   - If web search results are provided, clearly label them as "from web search"
+4. **If asked about a scholarship NOT in our database, be honest.**
 
 5. **For time-sensitive information, always add a disclaimer** that the student should verify on the official website.
 
@@ -458,8 +333,6 @@ CRITICAL ANTI-HALLUCINATION RULES (MUST FOLLOW):
 
 SCHOLARSHIP DATABASE:
 {SCHOLARSHIPS_CONTEXT}
-
-{WEB_SEARCH_CONTEXT}
 
 Remember: You are here to empower PUP students and incoming Iskolars ng Bayan. Every interaction should leave the student feeling more confident and informed. When in doubt, be honest — students trust you more when you admit what you don't know rather than making something up.`;
 
@@ -481,110 +354,56 @@ export async function POST(request: NextRequest) {
     const userGPA = extractGPA(message);
     const userStrand = extractStrand(message);
 
-    // Step 1: Get scholarship context (filtered if GPA was mentioned)
-    let scholarshipsContext: string;
+    // Step 1: Start data fetching and classification in parallel
+    const scholarshipNamesPromise = getScholarshipNames();
+    const scholarshipDataPromise = userGPA !== null
+        ? getFilteredScholarshipsContext(userGPA, userStrand)
+        : getAllScholarshipsContext().then(context => ({
+            context,
+            eligibleCount: 0,
+            ineligible: [],
+          }));
+
+    // Start classification as soon as names are ready
+    const classificationPromise = scholarshipNamesPromise.then(names => 
+      classifyQuery(message, names)
+    );
+
+    const [scholarshipData, classification] = await Promise.all([
+      scholarshipDataPromise,
+      classificationPromise,
+    ]);
+
     let eligibilityNote = "";
-    const allSources: SourceReference[] = [];
-
-    try {
-      if (userGPA !== null) {
-        const filtered = await getFilteredScholarshipsContext(userGPA, userStrand);
-        scholarshipsContext = filtered.context;
-
-        eligibilityNote = [
-          `═══════════════════════════════════════════════════════════════`,
-          `PRE-FILTERED SCHOLARSHIP DATABASE (based on student's GPA: ${userGPA}%)`,
-          `═══════════════════════════════════════════════════════════════`,
-          ``,
-          `The student mentioned they have a GPA of ${userGPA}%.`,
-          userStrand ? `The student mentioned they are from the ${userStrand} strand.` : "",
-          `The scholarships listed below have been PRE-FILTERED to only include ones where the minimum GPA requirement is ≤ ${userGPA}%.`,
-          `This means the student IS GPA-eligible for ALL ${filtered.eligibleCount} scholarships listed below.`,
-          `There are ${filtered.ineligible.length} scholarships NOT shown because the student's GPA does not meet their minimum requirement:`,
-          ...filtered.ineligible.map((s) => `  - ${s.name} (requires ${s.minGPA}% GPA)`),
-          ``,
-          `IMPORTANT: Do NOT recommend any of the ineligible scholarships listed above as options the student can currently apply for.`,
-          `═══════════════════════════════════════════════════════════════`,
-        ].join("\n");
-
-        allSources.push({
-          type: "database",
-          name: `ScholarAId Database (${filtered.eligibleCount} eligible for ${userGPA}% GPA)`,
-        });
-      } else {
-        scholarshipsContext = await getAllScholarshipsContext();
-      }
-    } catch (dbError) {
-      console.error("[Chat API] Database error:", dbError);
-      scholarshipsContext = "Database temporarily unavailable.";
+    if (userGPA !== null && "eligibleCount" in scholarshipData) {
+      const data = scholarshipData as any;
+      eligibilityNote = [
+        `═══════════════════════════════════════════════════════════════`,
+        `PRE-FILTERED SCHOLARSHIP DATABASE (based on student's GPA: ${userGPA}%)`,
+        `═══════════════════════════════════════════════════════════════`,
+        ``,
+        `The student mentioned they have a GPA of ${userGPA}%.`,
+        userStrand ? `The student mentioned they are from the ${userStrand} strand.` : "",
+        `The scholarships listed below have been PRE-FILTERED to only include ones where the minimum GPA requirement is ≤ ${userGPA}%.`,
+        `This means the student IS GPA-eligible for ALL ${data.eligibleCount} scholarships listed below.`,
+        data.ineligible.length > 0 
+          ? `There are ${data.ineligible.length} scholarships NOT shown because the student's GPA does not meet their minimum requirement.`
+          : "",
+        ``,
+        `═══════════════════════════════════════════════════════════════`,
+      ].join("\n");
     }
 
-    // Step 2: Classify query for web search
-    let classification = {
-      needsWebSearch: false,
-      searchQuery: message,
-      needsPageRead: false,
-      pageUrl: "",
-    };
-
-    try {
-      const scholarshipNames = (
-        await db.scholarship.findMany({
-          where: { isActive: true },
-          select: { name: true },
-        })
-      ).map((s) => s.name);
-
-      classification = await classifyQuery(message, scholarshipNames);
-    } catch (classifyError) {
-      console.error("[Chat API] Classification error:", classifyError);
-      // Continue without web search
-    }
-
-    // Step 3: Perform web search if needed
-    let webSearchContext = "";
-    if (classification.needsWebSearch) {
-      try {
-        const searchResult = await performWebSearch(classification.searchQuery);
-        webSearchContext = searchResult.context
-          ? `\n\nWEB SEARCH RESULTS (use these carefully — they may not be fully verified):\n${searchResult.context}`
-          : "";
-        allSources.push(...searchResult.sources);
-      } catch (searchError) {
-        console.error("[Chat API] Web search error:", searchError);
-        // Continue without web search context
-      }
-    }
-
-    // Step 4: Read web page if needed
-    if (classification.needsPageRead && classification.pageUrl) {
-      try {
-        const pageResult = await readWebPage(classification.pageUrl);
-        if (pageResult.context) {
-          webSearchContext += `\n\nWEB PAGE CONTENT from ${classification.pageUrl}:\n${pageResult.context}`;
-          if (pageResult.source) {
-            allSources.push(pageResult.source);
-          }
-        }
-      } catch (pageError) {
-        console.error("[Chat API] Page read error:", pageError);
-        // Continue without page content
-      }
-    }
-
-    // Step 5: Build the system prompt with all context
+    // Step 3: Build the system prompt
     const systemPrompt = SYSTEM_PROMPT.replace(
       "{ELIGIBILITY_NOTE}",
       eligibilityNote
-    )
-      .replace("{SCHOLARSHIPS_CONTEXT}", scholarshipsContext)
-      .replace("{WEB_SEARCH_CONTEXT}", webSearchContext);
+    ).replace("{SCHOLARSHIPS_CONTEXT}", scholarshipData.context);
 
-    // Step 6: Build messages for the LangChain model
-    const model = getChatModel();
+    // Step 4: Build messages
     const messages = [
       new SystemMessage(systemPrompt),
-      ...history.slice(-16).map((m) =>
+      ...history.slice(-10).map((m) =>
         m.role === "user"
           ? new HumanMessage(m.content)
           : new AIMessage(m.content)
@@ -592,68 +411,36 @@ export async function POST(request: NextRequest) {
       new HumanMessage(message),
     ];
 
-    // Step 7: Generate response using LangChain (with retry)
-    let response;
-    let lastError: Error | null = null;
+    // Step 5: Streaming Response
+    const model = getChatModel();
+    const encoder = new TextEncoder();
 
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try {
-        response = await model.invoke(messages);
-        break;
-      } catch (invokeError) {
-        lastError = invokeError instanceof Error ? invokeError : new Error(String(invokeError));
-        console.warn(`[Chat API] LLM invoke attempt ${attempt + 1} failed:`, lastError.message);
-        if (attempt < 2) {
-          await new Promise((resolve) => setTimeout(resolve, 1000 * (attempt + 1)));
-        }
+    const stream = await model.stream(messages);
+
+    return new Response(
+      new ReadableStream({
+        async start(controller) {
+          try {
+            for await (const chunk of stream) {
+              const content = typeof chunk.content === 'string' 
+                ? chunk.content 
+                : JSON.stringify(chunk.content);
+              controller.enqueue(encoder.encode(content));
+            }
+            controller.close();
+          } catch (error) {
+            console.error("[Chat API] Streaming error:", error);
+            controller.error(error);
+          }
+        },
+      }),
+      {
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8",
+          "X-Accel-Buffering": "no", // Disable buffering for Nginx/Vercel
+        },
       }
-    }
-
-    if (!response) {
-      console.error("[Chat API] All LLM invoke attempts failed:", lastError);
-      return NextResponse.json(
-        { error: "AI is currently unavailable. Please try again in a moment." },
-        { status: 503 }
-      );
-    }
-
-    let responseContent = "";
-    if (typeof response.content === "string") {
-      responseContent = response.content;
-    } else if (Array.isArray(response.content)) {
-      // Handle multi-part content from Gemini/other models
-      const textParts = response.content.filter(
-        (part: Record<string, unknown>) =>
-          part.type === "text" && typeof (part as { text: string }).text === "string"
-      );
-      responseContent = textParts
-        .map((part: Record<string, unknown>) => (part as { text: string }).text)
-        .join("\n");
-    }
-
-    if (!responseContent) {
-      return NextResponse.json(
-        { error: "AI failed to generate a response. Please try again." },
-        { status: 500 }
-      );
-    }
-
-    // Get model info
-    const modelInfo = getActiveModelInfo();
-
-    return NextResponse.json({
-      response: responseContent,
-      timestamp: new Date().toISOString(),
-      sources: allSources.map((s) => ({
-        type: s.type,
-        name: s.name,
-        url: s.url || undefined,
-      })),
-      model: {
-        provider: modelInfo.provider,
-        name: modelInfo.model,
-      },
-    });
+    );
   } catch (error) {
     console.error("[Chat API] Unhandled error:", error);
     return NextResponse.json(

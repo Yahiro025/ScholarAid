@@ -15,17 +15,10 @@
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { ChatGroq } from "@langchain/groq";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import ZAI from "z-ai-web-dev-sdk";
-import {
-  HumanMessage,
-  SystemMessage,
-  AIMessage,
-  BaseMessage,
-} from "@langchain/core/messages";
 
 // ─── Model Provider Types ────────────────────────────────────────────────────
 
-export type ModelProvider = "gemini" | "gemini-flash" | "groq" | "zai";
+export type ModelProvider = "gemini" | "gemini-flash" | "groq";
 
 export interface ModelConfig {
   provider: ModelProvider;
@@ -39,9 +32,9 @@ export interface ModelConfig {
 export const MODEL_CONFIGS: Record<ModelProvider, ModelConfig> = {
   gemini: {
     provider: "gemini",
-    model: "gemini-2.5-flash-preview-05-20",
+    model: "gemini-2.0-flash",
     temperature: 0.7,
-    maxTokens: 8192,
+    maxTokens: 4096,
   },
   "gemini-flash": {
     provider: "gemini-flash",
@@ -55,120 +48,7 @@ export const MODEL_CONFIGS: Record<ModelProvider, ModelConfig> = {
     temperature: 0.7,
     maxTokens: 4096,
   },
-  zai: {
-    provider: "zai",
-    model: "z-ai-default",
-    temperature: 0.7,
-  },
 };
-
-// ─── Cached ZAI Instance ────────────────────────────────────────────────────
-
-let cachedZAI: InstanceType<typeof ZAI> | null = null;
-let zaiInitPromise: Promise<InstanceType<typeof ZAI>> | null = null;
-
-async function getZAIInstance(): Promise<InstanceType<typeof ZAI>> {
-  if (cachedZAI) return cachedZAI;
-
-  if (zaiInitPromise) return zaiInitPromise;
-
-  zaiInitPromise = ZAI.create().then((instance) => {
-    cachedZAI = instance;
-    zaiInitPromise = null;
-    return instance;
-  }).catch((error) => {
-    zaiInitPromise = null;
-    throw error;
-  });
-
-  return zaiInitPromise;
-}
-
-// ─── Custom z-ai-web-dev-sdk ChatModel Wrapper ───────────────────────────────
-
-/**
- * Custom LangChain ChatModel that wraps z-ai-web-dev-sdk.
- * This allows us to use z-ai as a fallback when no API keys are available,
- * while still leveraging LangChain's chains, tools, and structured output.
- */
-export class ZAIChatModel extends BaseChatModel {
-  lc_serializable = false;
-
-  temperature: number;
-  thinking: boolean;
-  maxRetries: number;
-
-  constructor(fields?: { temperature?: number; thinking?: boolean; maxRetries?: number }) {
-    super(fields ?? {});
-    this.temperature = fields?.temperature ?? 0.7;
-    this.thinking = fields?.thinking ?? false;
-    this.maxRetries = fields?.maxRetries ?? 2;
-  }
-
-  _llmType(): string {
-    return "z-ai-web-dev-sdk";
-  }
-
-  async _generate(
-    messages: BaseMessage[]
-  ): Promise<{
-    generations: { text: string; message: AIMessage }[];
-  }> {
-    // Convert LangChain messages to z-ai format
-    const zaiMessages = messages.map((msg) => {
-      if (msg instanceof SystemMessage) {
-        return { role: "assistant" as const, content: msg.content as string };
-      } else if (msg instanceof HumanMessage) {
-        return { role: "user" as const, content: msg.content as string };
-      } else if (msg instanceof AIMessage) {
-        return { role: "assistant" as const, content: msg.content as string };
-      }
-      return { role: "user" as const, content: msg.content as string };
-    });
-
-    let lastError: Error | null = null;
-
-    for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
-      try {
-        const zai = await getZAIInstance();
-        const completion = await zai.chat.completions.create({
-          messages: zaiMessages,
-          thinking: { type: this.thinking ? "enabled" : "disabled" },
-        });
-
-        const content = completion.choices?.[0]?.message?.content ?? "";
-
-        if (!content || content.trim().length === 0) {
-          throw new Error("Empty response from z-ai");
-        }
-
-        return {
-          generations: [
-            {
-              text: content,
-              message: new AIMessage(content),
-            },
-          ],
-        };
-      } catch (error) {
-        lastError = error instanceof Error ? error : new Error(String(error));
-        console.warn(
-          `[ZAIChatModel] Attempt ${attempt + 1} failed:`,
-          lastError.message
-        );
-
-        if (attempt < this.maxRetries) {
-          // Wait before retry (exponential backoff)
-          await new Promise((resolve) =>
-            setTimeout(resolve, 1000 * (attempt + 1))
-          );
-        }
-      }
-    }
-
-    throw lastError || new Error("Failed to get response from z-ai after retries");
-  }
-}
 
 // ─── Model Factory ───────────────────────────────────────────────────────────
 
@@ -177,7 +57,7 @@ let cachedProvider: ModelProvider | null = null;
 
 /**
  * Get the best available chat model.
- * Priority: Gemini > Groq > z-ai (fallback)
+ * Priority: Gemini > Groq
  */
 export function getChatModel(
   preferredProvider?: ModelProvider,
@@ -199,10 +79,10 @@ export function getChatModel(
     case "gemini-flash": {
       const apiKey = process.env.GOOGLE_API_KEY;
       if (!apiKey) {
-        console.warn(
-          "[LangChain] GOOGLE_API_KEY not set, falling back to z-ai"
-        );
-        return getChatModel("zai", config);
+        if (process.env.GROQ_API_KEY) {
+            return getChatModel("groq", config);
+        }
+        throw new Error("Neither GOOGLE_API_KEY nor GROQ_API_KEY is set.");
       }
       model = new ChatGoogleGenerativeAI({
         apiKey,
@@ -216,10 +96,10 @@ export function getChatModel(
     case "groq": {
       const apiKey = process.env.GROQ_API_KEY;
       if (!apiKey) {
-        console.warn(
-          "[LangChain] GROQ_API_KEY not set, falling back to z-ai"
-        );
-        return getChatModel("zai", config);
+        if (process.env.GOOGLE_API_KEY) {
+            return getChatModel("gemini", config);
+        }
+        throw new Error("Neither GOOGLE_API_KEY nor GROQ_API_KEY is set.");
       }
       model = new ChatGroq({
         apiKey,
@@ -230,14 +110,8 @@ export function getChatModel(
       break;
     }
 
-    case "zai":
     default: {
-      model = new ZAIChatModel({
-        temperature: modelConfig.temperature,
-        thinking: false,
-        maxRetries: 2,
-      });
-      break;
+      throw new Error(`Unsupported provider: ${provider}`);
     }
   }
 
@@ -256,7 +130,7 @@ export function getStructuredModel(
   preferredProvider?: ModelProvider
 ): BaseChatModel {
   return getChatModel(preferredProvider, {
-    temperature: 0.2,
+    temperature: 0.1,
     maxTokens: 4096,
   });
 }
@@ -268,7 +142,7 @@ export function getCreativeModel(
   preferredProvider?: ModelProvider
 ): BaseChatModel {
   return getChatModel(preferredProvider, {
-    temperature: 0.9,
+    temperature: 0.8,
     maxTokens: 4096,
   });
 }
@@ -279,7 +153,7 @@ export function getCreativeModel(
 function getBestAvailableProvider(): ModelProvider {
   if (process.env.GOOGLE_API_KEY) return "gemini";
   if (process.env.GROQ_API_KEY) return "groq";
-  return "zai";
+  return "gemini"; // Default
 }
 
 /**
@@ -298,3 +172,4 @@ export function getActiveModelInfo(): {
     isFree: true,
   };
 }
+

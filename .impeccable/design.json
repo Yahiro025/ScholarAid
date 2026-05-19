@@ -1,0 +1,100 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-05-19T00:00:00.000Z",
+  "title": "Design System: ScholarAid",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "Bicolano Sea Emerald",
+        "canonical": "oklch(0.517 0.153 163)",
+        "tonalRamp": [
+          "oklch(0.15 0.05 163)",
+          "oklch(0.3 0.1 163)",
+          "oklch(0.45 0.14 163)",
+          "oklch(0.517 0.153 163)",
+          "oklch(0.65 0.12 163)",
+          "oklch(0.8 0.08 163)",
+          "oklch(0.9 0.04 163)",
+          "oklch(0.97 0.01 163)"
+        ]
+      },
+      "secondary": {
+        "role": "secondary",
+        "displayName": "Deep Tidal Teal",
+        "canonical": "oklch(0.6 0.118 184.704)"
+      },
+      "neutral-bg": {
+        "role": "neutral",
+        "displayName": "Isla Parchment",
+        "canonical": "oklch(0.985 0.004 95)"
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display Headline",
+        "purpose": "Hero sections only."
+      },
+      "body": {
+        "displayName": "Body Text",
+        "purpose": "Standard reading content."
+      }
+    },
+    "motion": [
+      {
+        "name": "standard-ease",
+        "value": "cubic-bezier(0.25, 0.46, 0.45, 0.94)",
+        "purpose": "Used for all reveal animations."
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Action Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The main CTA for scholarship matching and registration.",
+      "html": "<button class=\"ds-btn-primary\">Get AI Recommendations</button>",
+      "css": ".ds-btn-primary { background: linear-gradient(90deg, oklch(0.517 0.153 163), oklch(0.6 0.118 184.704)); color: #fff; padding: 12px 24px; border-radius: 10px; font-weight: 600; font-family: 'Plus Jakarta Sans', sans-serif; border: none; transition: transform 0.2s, box-shadow 0.2s; cursor: pointer; } .ds-btn-primary:hover { transform: scale(1.05); box-shadow: 0 10px 25px -5px rgba(16, 185, 129, 0.4); }"
+    },
+    {
+      "name": "Glass Feature Card",
+      "kind": "card",
+      "refersTo": "card-glass",
+      "description": "Used in the Hero section for AI feature highlights.",
+      "html": "<div class=\"ds-card-glass\"><h3>AI Matching</h3><p>Personalized recommendations.</p></div>",
+      "css": ".ds-card-glass { background: rgba(255, 255, 255, 0.06); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.08); padding: 24px; border-radius: 16px; color: #fff; } .ds-card-glass h3 { font-family: 'Plus Jakarta Sans', sans-serif; margin-bottom: 8px; color: #fff; } .ds-card-glass p { opacity: 0.6; font-size: 0.875rem; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Iskolars' Compass",
+    "overview": "ScholarAid follows a Dual-State Narrative, moving students from the 'Darkness of Uncertainty' in the hero to the 'Clarity of Light' in the application tools.",
+    "keyCharacteristics": [
+      "Hopeful Momentum",
+      "Resilient Utility",
+      "Supportive Precision"
+    ],
+    "rules": [
+      {
+        "name": "The 10% Emerald Rule",
+        "body": "Emerald is a reward; it must never exceed 10% of any tool-heavy screen.",
+        "section": "colors"
+      },
+      {
+        "name": "The Response Elevation Rule",
+        "body": "Surfaces are flat by default. Depth is only a response to interaction.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do use OKLCH for colors",
+      "Do prioritize mobile-first layouts",
+      "Do use the Resilient Navigation pattern"
+    ],
+    "donts": [
+      "Don't use side-stripe borders",
+      "Don't use generic clinical teals",
+      "Don't use SaaS-cream gradients"
+    ]
+  }
+}

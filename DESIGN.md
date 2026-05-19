@@ -1,0 +1,114 @@
+---
+name: ScholarAid
+description: AI-Powered Scholarship Assistance for Filipino Students
+colors:
+  primary: "#10b981" # oklch(0.517 0.153 163)
+  secondary: "#14b8a6" # oklch(0.6 0.118 184.704)
+  neutral-bg: "#fafaf8" # oklch(0.985 0.004 95)
+  neutral-fg: "#1a1c1e" # oklch(0.145 0.005 260)
+  dark-bg: "#080f1a" # Custom Hero background
+typography:
+  display:
+    fontFamily: "Plus Jakarta Sans, system-ui, sans-serif"
+    fontSize: "clamp(2.6rem, 7vw, 5rem)"
+    fontWeight: 800
+    lineHeight: 1.05
+    letterSpacing: "-0.025em"
+  headline:
+    fontFamily: "Plus Jakarta Sans, system-ui, sans-serif"
+    fontSize: "2.25rem"
+    fontWeight: 700
+    lineHeight: 1.2
+  body:
+    fontFamily: "DM Sans, system-ui, sans-serif"
+    fontSize: "1rem"
+    lineHeight: 1.6
+rounded:
+  sm: "6px"
+  md: "10px"
+  lg: "16px"
+spacing:
+  sm: "8px"
+  md: "16px"
+  lg: "32px"
+components:
+  button-primary:
+    backgroundColor: "{colors.primary}"
+    textColor: "#ffffff"
+    rounded: "{rounded.md}"
+    padding: "12px 24px"
+  card-glass:
+    backgroundColor: "rgba(255, 255, 255, 0.06)"
+    rounded: "{rounded.lg}"
+    padding: "24px"
+---
+
+# Design System: ScholarAid
+
+## 1. Overview
+
+**Creative North Star: "The Iskolars' Compass"**
+
+ScholarAid is designed to be a stabilizing force for students navigating the high-stakes transition to university. The system follows a **Dual-State Narrative**: it acknowledges the "Darkness of Uncertainty" in the initial research phase (deep navy hero, glassmorphism, ethereal glows) and moves students toward the "Clarity of Light" (clean white surfaces, emerald accents, high-contrast utility) as they engage with matching and reviewer tools.
+
+**Key Characteristics:**
+- **Hopeful Momentum**: Subtle animations and progress indicators that celebrate small wins.
+- **Resilient Utility**: A focus on mobile-first clarity and performance, ensuring tools work on any device.
+- **Supportive Precision**: AI tools are presented with technical confidence but guiding warmth.
+
+## 2. Colors
+
+The palette is anchored by "Bicolano Sea Emerald"—a hue that feels both high-tech and organically Filipino.
+
+### Primary
+- **Bicolano Sea Emerald** (oklch(0.517 0.153 163)): The main action color. Used for primary buttons, success states, and progress indicators.
+- **Deep Tidal Teal** (oklch(0.6 0.118 184.704)): Used for secondary accents and gradients to add depth.
+
+### Neutral
+- **Isla Parchment** (oklch(0.985 0.004 95)): The light-mode background. Warm, non-clinical, and easy on the eyes.
+- **Nocturnal Blue** (#080f1a): The hero-state background. Provides a high-contrast stage for AI glows.
+
+### Named Rules
+**The 10% Emerald Rule.** Emerald is a reward for the eye. It must never exceed 10% of any tool-heavy screen to ensure it maintains its "guiding" value.
+
+## 3. Typography
+
+**Display Font:** Plus Jakarta Sans
+**Body Font:** DM Sans
+
+**Character: Resilient Readability.** The pairing balances the geometric confidence of Jakarta with the high-legibility of DM Sans, optimized for dense scholarship criteria.
+
+### Hierarchy
+- **Display** (800, clamp, 1.05): Used for hero headlines to convey authority and hope.
+- **Headline** (700, 2.25rem, 1.2): Used for section titles.
+- **Body** (400, 1rem, 1.6): Optimized for 65–75ch to ensure reading stamina.
+
+## 4. Elevation
+
+ScholarAid avoids artificial shadows at rest, favoring tonal layering and glassmorphism in dark contexts.
+
+### Named Rules
+**The Response Elevation Rule.** Surfaces are flat by default. Depth is only introduced as a response to interaction (hover/active) or to distinguish AI-generated content (Glassmorphism).
+
+## 5. Components
+
+### Buttons
+- **Shape:** Softened Rectangles (10px radius)
+- **Primary:** Emerald gradient background, white text.
+- **Hover:** Slight scale-up (1.05x) and intensified shadow-glow.
+
+### Cards: The Scholar-Card
+- **Style:** Light mode: White with 1px border (oklch(0.918 0.008 155)). Dark mode: Glassmorphism (blur-16, 6% opacity).
+- **Internal Padding:** Generous (24px) to avoid a "cluttered ad-portal" feel.
+
+## 6. Do's and Don'ts
+
+### Do:
+- **Do** use OKLCH for all brand-new color declarations.
+- **Do** prioritize mobile-first layout stacking for all scholarship tables.
+- **Do** use the "Resilient Navigation" pattern: keep the primary action fixed or easily accessible.
+
+### Don't:
+- **Don't** use side-stripe borders as colored accents on cards.
+- **Don't** use generic blue or clinical teals; stick to the Bicolano Sea Emerald.
+- **Don't** use "SaaS-cream" gradients that feel impersonal; favor the Dual-State Narrative.

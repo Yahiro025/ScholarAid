@@ -13,7 +13,7 @@ import { ChatGroq } from "@langchain/groq";
 import { BaseChatModel, BaseChatModelParams } from "@langchain/core/language_models/chat_models";
 import { BaseMessage, AIMessage, ChatResult } from "@langchain/core/messages";
 import { CallbackManagerForLLMRun } from "@langchain/core/callbacks/manager";
-import { generateChatResponse } from "z-ai-web-dev-sdk";
+import ZAI from "z-ai-web-dev-sdk";
 
 // ─── Z-AI SDK LangChain Wrapper ──────────────────────────────────────────────
 
@@ -40,18 +40,27 @@ export class ZAIChatModel extends BaseChatModel {
       ? lastMessage.content 
       : JSON.stringify(lastMessage.content);
 
-    const response = await generateChatResponse({
-      message: text,
-    });
+    try {
+      // Use the correct ZAI client API as identified by RCA
+      const client = await ZAI.create();
+      const response = await client.chat.completions.create({
+        messages: [{ role: "user", content: text }],
+      });
 
-    return {
-      generations: [
-        {
-          text: response,
-          message: new AIMessage(response),
-        },
-      ],
-    };
+      const content = response.choices[0]?.message?.content || "";
+
+      return {
+        generations: [
+          {
+            text: content,
+            message: new AIMessage(content),
+          },
+        ],
+      };
+    } catch (error) {
+      console.error("[ZAIChatModel] SDK call failed:", error);
+      throw error;
+    }
   }
 }
 

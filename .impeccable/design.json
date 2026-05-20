@@ -55,7 +55,7 @@
       "refersTo": "button-primary",
       "description": "The main CTA for scholarship matching and registration.",
       "html": "<button class=\"ds-btn-primary\">Get AI Recommendations</button>",
-      "css": ".ds-btn-primary { background: linear-gradient(90deg, oklch(0.517 0.153 163), oklch(0.6 0.118 184.704)); color: #fff; padding: 12px 24px; border-radius: 10px; font-weight: 600; font-family: 'Plus Jakarta Sans', sans-serif; border: none; transition: transform 0.2s, box-shadow 0.2s; cursor: pointer; } .ds-btn-primary:hover { transform: scale(1.05); box-shadow: 0 10px 25px -5px rgba(16, 185, 129, 0.4); }"
+      "css": ".ds-btn-primary { background: linear-gradient(90deg, oklch(0.517 0.153 163), oklch(0.6 0.118 184.704)); color: #fff; padding: 12px 24px; border-radius: 10px; font-weight: 600; font-family: 'Outfit', sans-serif; border: none; transition: transform 0.2s, box-shadow 0.2s; cursor: pointer; } .ds-btn-primary:hover { transform: scale(1.05); box-shadow: 0 10px 25px -5px rgba(16, 185, 129, 0.4); }"
     },
     {
       "name": "Glass Feature Card",
@@ -63,7 +63,7 @@
       "refersTo": "card-glass",
       "description": "Used in the Hero section for AI feature highlights.",
       "html": "<div class=\"ds-card-glass\"><h3>AI Matching</h3><p>Personalized recommendations.</p></div>",
-      "css": ".ds-card-glass { background: rgba(255, 255, 255, 0.06); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.08); padding: 24px; border-radius: 16px; color: #fff; } .ds-card-glass h3 { font-family: 'Plus Jakarta Sans', sans-serif; margin-bottom: 8px; color: #fff; } .ds-card-glass p { opacity: 0.6; font-size: 0.875rem; }"
+      "css": ".ds-card-glass { background: rgba(255, 255, 255, 0.06); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.08); padding: 24px; border-radius: 16px; color: #fff; } .ds-card-glass h3 { font-family: 'Outfit', sans-serif; margin-bottom: 8px; color: #fff; } .ds-card-glass p { opacity: 0.6; font-size: 0.875rem; }"
     }
   ],
   "narrative": {

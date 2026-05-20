@@ -9,18 +9,18 @@ colors:
   dark-bg: "#080f1a" # Custom Hero background
 typography:
   display:
-    fontFamily: "Plus Jakarta Sans, system-ui, sans-serif"
+    fontFamily: "Outfit, system-ui, sans-serif"
     fontSize: "clamp(2.6rem, 7vw, 5rem)"
     fontWeight: 800
     lineHeight: 1.05
     letterSpacing: "-0.025em"
   headline:
-    fontFamily: "Plus Jakarta Sans, system-ui, sans-serif"
+    fontFamily: "Outfit, system-ui, sans-serif"
     fontSize: "2.25rem"
     fontWeight: 700
     lineHeight: 1.2
   body:
-    fontFamily: "DM Sans, system-ui, sans-serif"
+    fontFamily: "Instrument Sans, system-ui, sans-serif"
     fontSize: "1rem"
     lineHeight: 1.6
 rounded:
@@ -73,11 +73,11 @@ The palette is anchored by "Bicolano Sea Emerald"—a hue that feels both high-t
 
 ## 3. Typography
 
-**Display Font:** Plus Jakarta Sans
-**Body Font:** Inter
+**Display Font:** Outfit
+**Body Font:** Instrument Sans
 **Mono Font:** Geist Mono
 
-**Character: Technical Precision & Supportive Clarity.** The system transitions from a fluid hero display to a disciplined, fixed-scale product interface. Plus Jakarta Sans provides geometric authority, while Inter ensures maximum legibility for dense scholarship criteria and AI-generated content.
+**Character: Technical Precision & Supportive Clarity.** The system transitions from a fluid hero display to a disciplined, fixed-scale product interface. Outfit provides geometric authority and futuristic premium style, while Instrument Sans ensures maximum legibility and polished readability for dense scholarship criteria and AI-generated content.
 
 ### Type Scale (1.2 Minor Third)
 The system uses a modular scale to ensure mathematical harmony and clear hierarchy.
@@ -89,7 +89,7 @@ The system uses a modular scale to ensure mathematical harmony and clear hierarc
 | **H3** | 700 | 1.728rem | ~28px | Card Titles / Tool Headings |
 | **H4** | 700 | 1.44rem | ~23px | Minor Subheadings |
 | **H5** | 600 | 1.2rem | ~19px | Labels / Prompts |
-| **Body** | 400 | 1rem | 16px | Primary Prose (Inter) |
+| **Body** | 400 | 1rem | 16px | Primary Prose (Instrument Sans) |
 | **Small** | 400 | 0.833rem | ~13px | Captions / Metadata |
 
 **Named Rules:**

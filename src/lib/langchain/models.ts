@@ -2,8 +2,8 @@
  * LangChain Model Configuration for ScholarAId
  *
  * Supports multiple LLM providers with the following hierarchy:
- * 1. gemini-3-flash-preview (Highest Priority)
- * 2. gemini-2.5-flash-preview-05-20
+ * 1. gemini-pro (Highest Priority - gemini-1.5-pro flagship)
+ * 2. gemini-flash (Secondary Priority - gemini-1.5-flash fast)
  * 3. llama-3.3-70b-versatile (Groq)
  * 4. z-ai-web-dev-sdk (Last Fallback)
  */
@@ -66,7 +66,7 @@ export class ZAIChatModel extends BaseChatModel {
 
 // ─── Model Provider Types ────────────────────────────────────────────────────
 
-export type ModelProvider = "gemini-3" | "gemini-2.5" | "groq" | "zai";
+export type ModelProvider = "gemini-pro" | "gemini-flash" | "groq" | "zai";
 
 export interface ModelConfig {
   provider: ModelProvider;
@@ -78,15 +78,15 @@ export interface ModelConfig {
 // ─── Default Configurations ──────────────────────────────────────────────────
 
 export const MODEL_CONFIGS: Record<ModelProvider, ModelConfig> = {
-  "gemini-3": {
-    provider: "gemini-3",
-    model: "gemini-3-flash-preview",
+  "gemini-pro": {
+    provider: "gemini-pro",
+    model: "gemini-1.5-pro",
     temperature: 0.7,
     maxTokens: 4096,
   },
-  "gemini-2.5": {
-    provider: "gemini-2.5",
-    model: "gemini-2.5-flash-preview-05-20",
+  "gemini-flash": {
+    provider: "gemini-flash",
+    model: "gemini-1.5-flash",
     temperature: 0.7,
     maxTokens: 4096,
   },
@@ -129,8 +129,8 @@ export function getChatModel(
   let model: BaseChatModel;
 
   switch (provider) {
-    case "gemini-3":
-    case "gemini-2.5": {
+    case "gemini-pro":
+    case "gemini-flash": {
       const apiKey = process.env.GOOGLE_API_KEY;
       if (!apiKey) return getChatModel(getNextProvider(provider), config);
       
@@ -203,7 +203,7 @@ export function getCreativeModel(
  * Determine the best available provider based on the hierarchy and API keys.
  */
 function getBestAvailableProvider(): ModelProvider {
-  if (process.env.GOOGLE_API_KEY) return "gemini-3";
+  if (process.env.GOOGLE_API_KEY) return "gemini-pro";
   if (process.env.GROQ_API_KEY) return "groq";
   return "zai";
 }
@@ -212,7 +212,7 @@ function getBestAvailableProvider(): ModelProvider {
  * Get the next provider in the hierarchy if the current one is unavailable.
  */
 function getNextProvider(current: ModelProvider): ModelProvider {
-  const hierarchy: ModelProvider[] = ["gemini-3", "gemini-2.5", "groq", "zai"];
+  const hierarchy: ModelProvider[] = ["gemini-pro", "gemini-flash", "groq", "zai"];
   const index = hierarchy.indexOf(current);
   if (index === -1 || index === hierarchy.length - 1) return "zai";
   return hierarchy[index + 1];

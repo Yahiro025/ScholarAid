@@ -55,7 +55,7 @@ export default function RootLayout({
         className={`${outfit.variable} ${instrumentSans.variable} ${geistMono.variable} antialiased bg-background text-foreground flex flex-col min-h-screen`}
       >
         <Navbar />
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col w-full max-w-full overflow-x-hidden">
           {children}
         </div>
         <Toaster />

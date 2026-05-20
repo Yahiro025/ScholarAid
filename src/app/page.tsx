@@ -64,8 +64,8 @@ export default function Home() {
   }, [])
 
   return (
-    <div className="flex flex-col min-h-screen">
-      <main className="flex-1">
+    <div className="flex flex-col min-h-screen w-full max-w-full overflow-x-hidden relative">
+      <main className="flex-1 w-full max-w-full overflow-x-hidden">
         {/* Hero Section */}
         <HeroSection />
 
